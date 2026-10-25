@@ -1,4 +1,4 @@
-import { Component, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { Router, RouterLink } from '@angular/router';
 import { Api } from '../core/api.service';
@@ -142,7 +142,7 @@ export class SpaceComponent {
   candidates = computed(() => this.users().filter((u) => u.active && !this.draft().some((m) => m.userId === u.id)));
 
   constructor() {
-    effect(() => { this.load(this.key()); }, { allowSignalWrites: true });
+    effect(() => { const k = this.key(); untracked(() => this.load(k)); });
     effect(() => {
       if (this.members()) this.api.users().then((u) => this.users.set(u));
     }, { allowSignalWrites: true });

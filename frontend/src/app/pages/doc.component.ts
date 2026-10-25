@@ -1,4 +1,4 @@
-import { Component, HostListener, OnDestroy, computed, effect, inject, input, signal } from '@angular/core';
+import { Component, HostListener, OnDestroy, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
@@ -164,7 +164,7 @@ export class DocComponent implements OnDestroy {
   });
 
   constructor() {
-    effect(() => { const id = this.id(); this.edit(); this.importedQ(); this.load(id); }, { allowSignalWrites: true });
+    effect(() => { const id = this.id(); this.edit(); this.importedQ(); untracked(() => this.load(id)); });
   }
 
   async load(id: string) {
