@@ -11,6 +11,7 @@ import fitz  # PyMuPDF
 BULLET_RE = re.compile(r"^\s*([•●▪◦‣⁃·\-–\*])\s+")
 NUMBER_RE = re.compile(r"^\s*(\d{1,3}|[a-zA-Z])[.)]\s+")
 MARKER_ONLY_RE = re.compile(r"^\s*(?:[•●▪◦‣⁃·\-–\*]|\d{1,3}[.)]|[a-zA-Z][.)])\s*$")
+PAGE_NUM_RE = re.compile(r"^(?:p[aá]g(?:ina)?\.?\s*)?\d{1,4}(?:\s*(?:/|de|of)\s*\d{1,4})?$", re.I)
 MAX_IMAGE_BYTES = 8 * 1024 * 1024
 
 
@@ -229,13 +230,20 @@ def pdf_to_html(data: bytes) -> dict:
             key = re.sub(r"\d+", "#", " ".join(_line_text(ln) for ln in b["lines"]).strip())[:80]
             if key in running:
                 continue
+            if PAGE_NUM_RE.match(" ".join(_line_text(ln) for ln in b["lines"]).strip()) and (y1 < page.rect.height * 0.09 or y0 > page.rect.height * 0.91):
+                continue  # stray page number in the margin
             for group in _group_lines(b["lines"]):
                 text = " ".join(_line_text(ln).strip() for ln in group).strip()
                 if MARKER_ONLY_RE.match(text):  # bullet drawn as its own block: it belongs to the next one
                     pending_marker = "ol" if text[:1].isalnum() else "ul"
                     continue
                 text_chars += len(text)
-                size = max(s["size"] for ln in group for s in ln["spans"])
+                # dominant size by characters (a single enlarged word must not turn a paragraph into a heading)
+                by_size: Counter = Counter()
+                for ln in group:
+                    for sp in ln["spans"]:
+                        by_size[round(sp["size"], 1)] += len(sp["text"].strip())
+                size = by_size.most_common(1)[0][0] if by_size else body
                 bold_all = all(_is_bold(s) for ln in group for s in ln["spans"] if s["text"].strip())
                 ratio = size / body
                 gx0 = min(ln["bbox"][0] for ln in group)
