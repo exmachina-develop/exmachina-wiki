@@ -41,8 +41,8 @@ export interface OrgTreeNode { dept: Department; children: OrgTreeNode[] }
     }`,
   styles: [`
     :host { display: flex; flex-direction: column; align-items: center; }
-    .box { position: relative; display: block; width: 224px; }
-    .body { width: 100%; text-align: left; padding: 18px 18px 16px; border-top: 2px solid var(--c); display: flex; flex-direction: column; gap: 8px; }
+    .box { position: relative; display: block; width: 194px; }
+    .body { width: 100%; text-align: left; padding: 16px 14px 14px; border-top: 2px solid var(--c); display: flex; flex-direction: column; gap: 8px; }
     .box.sel .body { border-color: var(--line-strong); border-top-color: var(--c); background: var(--surface-2); }
     h3 { font-size: 18px; letter-spacing: -.015em; } p { font-size: 13px; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
     .people { display: flex; flex-direction: column; gap: 10px; margin-top: 6px; padding-top: 12px; border-top: 1px solid var(--line); }
@@ -52,7 +52,7 @@ export interface OrgTreeNode { dept: Department; children: OrgTreeNode[] }
     @media (hover: none) { .add { opacity: .8; } }
     ul { list-style: none; display: flex; justify-content: center; padding: 28px 0 0; position: relative; margin: 0; }
     ul::before { content: ''; position: absolute; top: 0; left: 50%; border-left: 1px solid var(--line-strong); height: 28px; }
-    li { position: relative; padding: 28px 8px 0; display: flex; justify-content: center; }
+    li { position: relative; padding: 28px 5px 0; display: flex; justify-content: center; }
     li::before, li::after { content: ''; position: absolute; top: 0; right: 50%; width: 50%; height: 28px; border-top: 1px solid var(--line-strong); }
     li::after { right: auto; left: 50%; border-left: 1px solid var(--line-strong); }
     li:only-child::before, li:only-child::after { display: none; } li:only-child { padding-top: 0; }
