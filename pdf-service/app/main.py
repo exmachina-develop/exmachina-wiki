@@ -36,7 +36,7 @@ class PageSettings(BaseModel):
     widthPt: float | None = Field(None, ge=50, le=3000)
     heightPt: float | None = Field(None, ge=50, le=3000)
     orientation: str = Field("portrait", pattern="^(portrait|landscape)$")
-    margin: float = Field(20, ge=5, le=50)
+    margin: float = Field(20, ge=0, le=50)
 
 
 class FromHtml(BaseModel):
