@@ -67,8 +67,9 @@ export const authInterceptor: HttpInterceptorFn = (req, next) => {
 
 export const authGuard: CanActivateFn = async (_r, state) => {
   const auth = inject(Auth);
+  const router = inject(Router); // inject() must run before the first await
   if (await auth.restore()) return true;
-  return inject(Router).createUrlTree(['/login'], { queryParams: { next: state.url } });
+  return router.createUrlTree(['/login'], { queryParams: { next: state.url } });
 };
 
 export const permGuard = (perm: string): CanActivateFn => () => inject(Auth).can(perm) || inject(Router).createUrlTree(['/']);
