@@ -227,3 +227,15 @@ a.card:hover, .card.hover:hover { border-color: var(--line-strong); background: 
 .paper p.is-editor-empty:first-child::before { content: attr(data-placeholder); float: left; color: #a3a3b3; pointer-events: none; height: 0; }
 
 @media print { body { background: #fff; } .no-print { display: none !important; } .paper { box-shadow: none; } }
+
+/* ============================================================
+   PAGE-FAITHFUL DOCUMENTS (imported PDFs): fixed sheets + positioned text boxes
+   ============================================================ */
+.pdfpages { display: flex; flex-direction: column; align-items: center; gap: 22px; width: max-content; margin: 0 auto; }
+.pdf-page { position: relative; flex: none; overflow: hidden; background-color: #fff; background-repeat: no-repeat; background-size: 100% 100%; box-shadow: var(--paper-shadow); color: #14141a; }
+.pdf-page .tb { position: absolute; white-space: pre; margin: 0; padding: 0; outline: none; font-family: 'Lexend', sans-serif; font-weight: 300; font-kerning: normal; font-synthesis: none; }
+.sheet-zoom { width: max-content; margin: 0 auto; }
+.sheet-zoom.editing .pdf-page .tb { cursor: text; border-radius: 2px; }
+.sheet-zoom.editing .pdf-page .tb:hover { outline: 1px dashed rgba(112, 71, 255, 0.55); outline-offset: 1px; }
+.sheet-zoom.editing .pdf-page .tb:focus, .sheet-zoom.editing .pdf-page .tb.sel { outline: 1.5px solid #7047ff; outline-offset: 1px; background: rgba(112, 71, 255, 0.07); }
+.sheet-zoom.editing .pdf-page .tb.sel::before { content: '✥'; position: absolute; left: -15px; top: 0; width: 15px; height: 15px; line-height: 15px; text-align: center; font: 12px/15px sans-serif; color: #fff; background: #7047ff; border-radius: 2px 0 0 2px; cursor: grab; }

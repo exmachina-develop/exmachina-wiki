@@ -21,11 +21,11 @@ export interface Space {
   members?: SpaceMemberView[]; access?: { canView: boolean; canEdit: boolean; canManage: boolean };
 }
 
-export interface PageSettings { size: 'A4' | 'Letter'; orientation: 'portrait' | 'landscape'; margin: number }
+export interface PageSettings { size: 'A4' | 'Letter' | 'Custom'; orientation: 'portrait' | 'landscape'; margin: number; widthPt?: number; heightPt?: number }
 
 export interface DocBrief {
   id: string; spaceId: string; parentId: string | null; title: string; icon: string;
-  source: 'native' | 'pdf'; position: number; updatedAt: string; createdAt: string;
+  source: 'native' | 'pdf'; layout: 'flow' | 'pages'; position: number; updatedAt: string; createdAt: string;
   author: UserRef | null; updatedBy: UserRef | null;
   space?: { id: string; key: string; name: string; icon: string };
 }

@@ -46,9 +46,11 @@ const FILE_URL_RE = /\/api\/files\/([0-9a-f-]{36})\/raw/gi;
 const VERSION_GAP_MS = 10 * 60 * 1000;
 
 class PageSettingsDto {
-  @IsIn(['A4', 'Letter']) size: 'A4' | 'Letter';
+  @IsIn(['A4', 'Letter', 'Custom']) size: 'A4' | 'Letter' | 'Custom';
   @IsIn(['portrait', 'landscape']) orientation: 'portrait' | 'landscape';
-  @IsNumber() @Min(5) @Max(50) margin: number;
+  @IsNumber() @Min(0) @Max(50) margin: number;
+  @IsOptional() @IsNumber() @Min(50) @Max(3000) widthPt?: number;
+  @IsOptional() @IsNumber() @Min(50) @Max(3000) heightPt?: number;
 }
 class CreateDocDto {
   @IsUUID() spaceId: string;
@@ -83,6 +85,18 @@ const ALLOWED_STYLES = {
     'vertical-align': [/^(top|middle|bottom|baseline)$/],
     'margin-left': [/^\d+(\.\d+)?(px|pt|em|rem)$/],
     border: [/^[\w\s#(),.%-]+$/],
+    position: [/^(absolute|relative)$/],
+    left: [/^-?\d+(\.\d+)?(px|pt|%)$/],
+    top: [/^-?\d+(\.\d+)?(px|pt|%)$/],
+    'letter-spacing': [/^-?\d+(\.\d+)?(px|pt|em)$/],
+    'font-weight': [/^(\d{3}|normal|bold|bolder|lighter)$/],
+    'font-style': [/^(normal|italic|oblique)$/],
+    'text-decoration': [/^(none|underline|line-through)( (none|underline|line-through))?$/],
+    'text-transform': [/^(none|uppercase|lowercase|capitalize)$/],
+    'white-space': [/^(normal|nowrap|pre|pre-wrap)$/],
+    'background-image': [/^url\(['"]?\/api\/files\/[0-9a-f-]{36}\/raw['"]?\)$/],
+    'background-size': [/^(cover|contain|100% 100%)$/],
+    'background-repeat': [/^(no-repeat|repeat)$/],
     'border-bottom': [/^[\w\s#(),.%-]+$/],
     'border-top': [/^[\w\s#(),.%-]+$/],
     padding: [/^\d+(\.\d+)?(px|pt|em|rem)?(\s+\d+(\.\d+)?(px|pt|em|rem)?){0,3}$/],
@@ -91,7 +105,7 @@ const ALLOWED_STYLES = {
 
 export const sanitizeDoc = (html: string) =>
   sanitizeHtml(html, {
-    allowedTags: ['p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup', 'br', 'hr', 'blockquote', 'pre', 'code', 'a', 'img', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col', 'span', 'div', 'mark'],
+    allowedTags: ['section', 'p', 'h1', 'h2', 'h3', 'h4', 'ul', 'ol', 'li', 'strong', 'b', 'em', 'i', 'u', 's', 'sub', 'sup', 'br', 'hr', 'blockquote', 'pre', 'code', 'a', 'img', 'table', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'colgroup', 'col', 'span', 'div', 'mark'],
     allowedAttributes: {
       a: ['href', 'target', 'rel'],
       img: ['src', 'alt', 'title', 'width', 'height'],
@@ -104,13 +118,14 @@ export const sanitizeDoc = (html: string) =>
       mark: ['style', 'data-color'],
     },
     allowedStyles: ALLOWED_STYLES,
+    allowedClasses: { section: ['pdf-page'], div: ['pdfpages', 'tb'] },
     allowedSchemes: ['http', 'https', 'mailto', 'tel'],
     allowProtocolRelative: false,
     transformTags: { a: sanitizeHtml.simpleTransform('a', { rel: 'noopener noreferrer nofollow', target: '_blank' }, true) },
   });
 
 const toText = (html: string) =>
-  sanitizeHtml(html.replace(/<\/(p|h\d|li|tr|div)>/gi, ' '), { allowedTags: [], allowedAttributes: {} })
+  sanitizeHtml(html.replace(/<br\s*\/?>|<\/(p|h\d|li|tr|div|section)>/gi, ' '), { allowedTags: [], allowedAttributes: {} })
     .replace(/&nbsp;/g, ' ')
     .replace(/\s+/g, ' ')
     .trim();
@@ -122,6 +137,7 @@ const brief = (d: DocumentEntity) => ({
   title: d.title,
   icon: d.icon,
   source: d.source,
+  layout: d.layout,
   position: d.position,
   updatedAt: d.updatedAt,
   createdAt: d.createdAt,
@@ -133,7 +149,7 @@ const brief = (d: DocumentEntity) => ({
 export class PdfClient {
   private base = process.env.PDF_SERVICE_URL ?? 'http://pdf-service:8000';
 
-  async toHtml(buf: Buffer, filename: string, kind: ImportKind = 'pdf'): Promise<{ html: string; title: string; pages: number; warnings: string[]; page?: PageSettings }> {
+  async toHtml(buf: Buffer, filename: string, kind: ImportKind = 'pdf'): Promise<{ html: string; title: string; pages: number; warnings: string[]; page?: PageSettings; layout?: string }> {
     const form = new FormData();
     form.append('file', new Blob([new Uint8Array(buf)], { type: IMPORT_MIME[kind] }), filename);
     const res = await this.call('/pdf/to-html', { method: 'POST', body: form });
@@ -392,6 +408,7 @@ export class DocumentsService {
         content,
         contentText: toText(content),
         source: ext,
+        layout: result.layout === 'pages' ? 'pages' : 'flow',
         pageSettings: result.page ? { ...DEFAULT_PAGE, ...result.page } : DEFAULT_PAGE,
         authorId: user.id,
         updatedById: user.id,

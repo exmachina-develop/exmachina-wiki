@@ -36,13 +36,24 @@ def _fetcher(url: str, *args, **kwargs):
     raise ValueError("Recursos externos deshabilitados")
 
 
-def html_to_pdf(html: str, title: str, size: str, orientation: str, margin: float) -> bytes:
-    page_css = f"""
-    @page {{
-      size: {size} {orientation};
-      margin: {margin}mm;
-      @bottom-right {{ content: counter(page) ' / ' counter(pages); font: 8pt 'Inter', sans-serif; color: #8b8fa3; }}
-    }}
-    """
+def html_to_pdf(html: str, title: str, size: str, orientation: str, margin: float, width_pt: float | None = None, height_pt: float | None = None) -> bytes:
+    if size == "Custom" and width_pt and height_pt:
+        # page-faithful documents (imported PDFs): one sheet per .pdf-page, no margins, no page counter
+        page_css = f"""
+        @page {{ size: {width_pt}pt {height_pt}pt; margin: 0; }}
+        body {{ margin: 0; }}
+        .pdfpages {{ display: block; }}
+        .pdf-page {{ position: relative; overflow: hidden; break-after: page; break-inside: avoid; background-repeat: no-repeat; background-size: 100% 100%; background-color: #fff; }}
+        .pdf-page:last-child {{ break-after: auto; }}
+        .tb {{ position: absolute; white-space: pre; margin: 0; padding: 0; }}
+        """
+    else:
+        page_css = f"""
+        @page {{
+          size: {size} {orientation};
+          margin: {margin}mm;
+          @bottom-right {{ content: counter(page) ' / ' counter(pages); font: 8pt 'Inter', sans-serif; color: #8b8fa3; }}
+        }}
+        """
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title></head><body>{html}</body></html>'
     return HTML(string=doc, url_fetcher=_fetcher, base_url=None).write_pdf(stylesheets=[CSS(string=BASE_CSS), CSS(string=page_css)], presentational_hints=True)

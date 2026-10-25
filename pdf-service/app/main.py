@@ -1,9 +1,10 @@
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 
 from .export import html_to_pdf
-from .importer import pdf_to_html
+from .layout import pdf_to_pages
 
 MAX_PDF_BYTES = 50 * 1024 * 1024
 
@@ -23,7 +24,7 @@ async def to_html(file: UploadFile = File(...)):
     if not data.startswith(b"%PDF-"):
         raise HTTPException(400, "No es un PDF")
     try:
-        return pdf_to_html(data)
+        return await run_in_threadpool(pdf_to_pages, data)
     except HTTPException:
         raise
     except Exception as exc:  # corrupt / encrypted documents
@@ -31,7 +32,9 @@ async def to_html(file: UploadFile = File(...)):
 
 
 class PageSettings(BaseModel):
-    size: str = Field("A4", pattern="^(A4|Letter)$")
+    size: str = Field("A4", pattern="^(A4|Letter|Custom)$")
+    widthPt: float | None = Field(None, ge=50, le=3000)
+    heightPt: float | None = Field(None, ge=50, le=3000)
     orientation: str = Field("portrait", pattern="^(portrait|landscape)$")
     margin: float = Field(20, ge=5, le=50)
 
@@ -45,7 +48,7 @@ class FromHtml(BaseModel):
 @app.post("/pdf/from-html")
 def from_html(body: FromHtml):
     try:
-        pdf = html_to_pdf(body.html, body.title, body.page.size, body.page.orientation, body.page.margin)
+        pdf = html_to_pdf(body.html, body.title, body.page.size, body.page.orientation, body.page.margin, body.page.widthPt, body.page.heightPt)
     except Exception as exc:
         raise HTTPException(422, f"No se pudo generar el PDF: {exc}") from exc
     return Response(content=pdf, media_type="application/pdf")

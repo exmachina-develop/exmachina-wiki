@@ -7,12 +7,13 @@ import { Doc, DocVersion, PageSettings } from '../core/models';
 import { SpacesStore } from '../core/spaces.store';
 import { Toasts } from '../core/toast.service';
 import { EditorComponent } from '../editor/editor.component';
+import { PagesEditorComponent } from '../editor/pages-editor.component';
 import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shared/ui';
 
 @Component({
   selector: 'app-doc',
   standalone: true,
-  imports: [FormsModule, RouterLink, EditorComponent, IconComponent, AvatarComponent, ModalComponent],
+  imports: [FormsModule, RouterLink, EditorComponent, PagesEditorComponent, IconComponent, AvatarComponent, ModalComponent],
   template: `
     @if (doc(); as d) {
       <div class="bar no-print">
@@ -35,7 +36,7 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
             @if (menu()) {
               <div class="menu" (click)="menu.set(false)">
                 @if (d.access.canEdit) {
-                  <button (click)="openPage()"><x-icon name="file2" /> Ajustes de página</button>
+                  @if (d.layout !== 'pages') { <button (click)="openPage()"><x-icon name="file2" /> Ajustes de página</button> }
                   <button (click)="saveVersion()"><x-icon name="save" /> Guardar versión</button>
                 }
                 @if (d.access.canDelete) { <button class="del" (click)="confirmDelete.set(true)"><x-icon name="trash" /> Eliminar</button> }
@@ -59,7 +60,11 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
         </div>
       </div>
 
-      <app-editor [content]="d.content" [editable]="editing()" [settings]="settings()" (contentChange)="onContent($event)" />
+      @if (d.layout === 'pages') {
+        <app-pages-editor [content]="d.content" [editable]="editing()" (contentChange)="onContent($event)" />
+      } @else {
+        <app-editor [content]="d.content" [editable]="editing()" [settings]="settings()" (contentChange)="onContent($event)" />
+      }
 
       @if (pageDlg()) {
         <x-modal (closed)="pageDlg.set(false)">

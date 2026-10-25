@@ -4,3 +4,4 @@ python-multipart==0.0.20
 pymupdf==1.25.1
 weasyprint==63.1
 pydantic==2.10.4
+pillow>=10.3

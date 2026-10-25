@@ -22,9 +22,11 @@ export interface AttachmentInfo {
 }
 
 export interface PageSettings {
-  size: 'A4' | 'Letter';
+  size: 'A4' | 'Letter' | 'Custom';
   orientation: 'portrait' | 'landscape';
   margin: number; // mm
+  widthPt?: number; // Custom: page-faithful documents (imported PDFs)
+  heightPt?: number;
 }
 
 @Entity('roles')
@@ -119,6 +121,8 @@ export class DocumentEntity {
   @Column({ type: 'text', default: '' }) content: string;
   @Column({ type: 'text', default: '' }) contentText: string;
   @Column({ type: 'varchar', default: 'native' }) source: 'native' | 'pdf';
+  /** flow = rich-text document; pages = fixed pages with positioned text boxes (imported PDFs) */
+  @Column({ type: 'varchar', default: 'flow' }) layout: 'flow' | 'pages';
   @Column({ type: 'uuid', nullable: true }) sourceFileId: string | null;
   @Column({ type: 'jsonb', default: () => "'[]'" }) attachments: AttachmentInfo[];
   @Column({ type: 'jsonb', default: () => `'{"size":"A4","orientation":"portrait","margin":20}'` })

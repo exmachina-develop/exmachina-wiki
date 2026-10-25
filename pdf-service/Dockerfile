@@ -8,11 +8,16 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fonts-inter fonts-roboto fonts-open-sans fonts-liberation2 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
-# Lora is not packaged in Debian: fetch it from the Google Fonts repo (non-fatal if offline).
-RUN mkdir -p /usr/local/share/fonts/lora && cd /usr/local/share/fonts/lora \
-    && (curl -fsSL -o Lora.ttf "https://github.com/google/fonts/raw/main/ofl/lora/Lora%5Bwght%5D.ttf" \
-        && curl -fsSL -o Lora-Italic.ttf "https://github.com/google/fonts/raw/main/ofl/lora/Lora-Italic%5Bwght%5D.ttf" \
-        || echo "WARN: Lora not downloaded; serif falls back to DejaVu")
+# Brand typefaces (Lexend, Unbounded, Urbanist) + Lora: not packaged in Debian, fetched from the Google Fonts repo.
+# Imported PDFs are re-typeset with these exact faces, so the build fails if they cannot be downloaded.
+RUN mkdir -p /usr/local/share/fonts/wiki && cd /usr/local/share/fonts/wiki \
+    && for f in lexend/Lexend unbounded/Unbounded urbanist/Urbanist; do \
+         n=$(basename "$f"); \
+         curl -fsSL --retry 3 -o "$n.ttf" "https://raw.githubusercontent.com/google/fonts/main/ofl/$f%5Bwght%5D.ttf"; \
+       done \
+    && curl -fsSL --retry 3 -o Lora.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/lora/Lora%5Bwght%5D.ttf" \
+    && curl -fsSL --retry 3 -o Lora-Italic.ttf "https://raw.githubusercontent.com/google/fonts/main/ofl/lora/Lora-Italic%5Bwght%5D.ttf" \
+    && ls -la
 
 # Georgia/Verdana have no free metric twin: map them to the closest DejaVu faces.
 COPY fonts.conf /etc/fonts/conf.d/60-wiki-aliases.conf
