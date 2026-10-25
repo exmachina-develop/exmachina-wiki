@@ -17,10 +17,21 @@ services:
       timeout: 5s
       retries: 10
 
+  # Official minio/minio images are no longer published on Docker Hub/Quay; Chainguard ships a MinIO build (runs as uid 65532).
+  minio-perms:
+    image: busybox:1.36
+    command: chown -R 65532:65532 /data
+    volumes:
+      - miniodata:/data
+    restart: "no"
+
   minio:
-    image: minio/minio:latest
+    image: cgr.dev/chainguard/minio:latest
     restart: unless-stopped
     command: server /data
+    depends_on:
+      minio-perms:
+        condition: service_completed_successfully
     environment:
       MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
       MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
