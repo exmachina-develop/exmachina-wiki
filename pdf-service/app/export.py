@@ -46,6 +46,7 @@ def html_to_pdf(html: str, title: str, size: str, orientation: str, margin: floa
         .pdf-page {{ position: relative; overflow: hidden; break-after: page; break-inside: avoid; background-repeat: no-repeat; background-size: 100% 100%; background-color: #fff; }}
         .pdf-page:last-child {{ break-after: auto; }}
         .tb {{ position: absolute; white-space: pre; margin: 0; padding: 0; }}
+        .tb span {{ line-height: 0; }}
         """
     else:
         page_css = f"""

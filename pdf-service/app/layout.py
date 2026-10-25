@@ -241,12 +241,13 @@ def _page_boxes(page: fitz.Page) -> tuple[list[str], list[fitz.Rect]]:
             pitch = median([b2 - b1 for b1, b2 in zip(baselines, baselines[1:])]) if n > 1 else g[0]["spans"][0]["size"] * 1.3
             pitch = max(pitch, 1.0)
             longest = max((r for r in line_runs if r), key=lambda r: sum(len(x["text"]) for x in r))
+            longest_dom = max(longest, key=lambda r: len(r["text"].strip()))
             top = baselines[0] - _line_offset(longest, pitch)
             x0 = min(ln["bbox"][0] for ln in g)
             x1 = max(ln["bbox"][2] for ln in g)
             centered = n > 1 and all(abs((ln["bbox"][0] + ln["bbox"][2]) / 2 - (x0 + x1) / 2) < 2 for ln in g) and any(abs(ln["bbox"][0] - x0) > 1.5 for ln in g)
             left = x0 if centered else min(r[0]["origin"][0] for r in line_runs if r)
-            st = [f"left: {left:.2f}pt", f"top: {top:.2f}pt", f"line-height: {pitch:.2f}pt"]
+            st = [f"left: {left:.2f}pt", f"top: {top:.2f}pt", f"line-height: {pitch:.2f}pt", f"font-family: {longest_dom['css']}", f"font-size: {longest_dom['size']:.2f}pt", f"font-weight: {longest_dom['w'] if longest_dom['fam'] in CANDIDATES else (700 if longest_dom['bold'] else 400)}"]
             if centered:
                 st += [f"width: {x1 - x0:.2f}pt", "text-align: center"]
             boxes.append(f'<div class="tb" style="{"; ".join(st)}">' + "<br>".join(_render_runs(r) for r in line_runs) + "</div>")

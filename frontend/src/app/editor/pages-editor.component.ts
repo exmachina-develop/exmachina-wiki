@@ -123,7 +123,7 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
     if (!wPt) return this.zoom.set(1);
     const px = (wPt * 96) / 72;
     const avail = this.stage.nativeElement.clientWidth - (window.innerWidth <= 900 ? 8 : 24);
-    this.zoom.set(Math.min(1.6, Math.max(0.25, avail / px)));
+    this.zoom.set(Math.min(1.3, Math.max(0.25, avail / px)));
   }
 
   private serialize(): string {
@@ -216,7 +216,7 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
     const page = pages.reduce((a, b) => (Math.abs(a.getBoundingClientRect().top + a.getBoundingClientRect().height / 2 - mid) < Math.abs(b.getBoundingClientRect().top + b.getBoundingClientRect().height / 2 - mid) ? a : b));
     const tb = document.createElement('div');
     tb.className = 'tb';
-    tb.setAttribute('style', 'left: 48pt; top: 48pt; line-height: 14pt');
+    tb.setAttribute("style", "left: 48pt; top: 48pt; line-height: 14pt; font-family: 'Lexend', sans-serif; font-size: 10.00pt; font-weight: 300");
     tb.innerHTML = `<span style="font-family: 'Lexend', sans-serif; font-size: 10.00pt; color: #14141a; font-weight: 300">Nuevo texto</span>`;
     page.appendChild(tb);
     this.applyEditable();
