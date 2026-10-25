@@ -1,0 +1,70 @@
+# EXMACHINA Wiki — PostgreSQL + MinIO + PDF service (Python) + API (NestJS) + web (Angular/nginx)
+name: exmachina-wiki
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${DB_NAME:-wiki}
+      POSTGRES_USER: ${DB_USER:-wiki}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?set DB_PASSWORD}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  minio:
+    image: minio/minio:latest
+    restart: unless-stopped
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:?set MINIO_ACCESS_KEY}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:?set MINIO_SECRET_KEY}
+    volumes:
+      - miniodata:/data
+
+  pdf-service:
+    build: ./pdf-service
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio:
+        condition: service_started
+      pdf-service:
+        condition: service_started
+    environment:
+      DB_HOST: postgres
+      DB_NAME: ${DB_NAME:-wiki}
+      DB_USER: ${DB_USER:-wiki}
+      DB_PASSWORD: ${DB_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET}
+      MINIO_ENDPOINT: minio
+      MINIO_ACCESS_KEY: ${MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MINIO_SECRET_KEY}
+      MINIO_BUCKET: ${MINIO_BUCKET:-wiki}
+      PDF_SERVICE_URL: http://pdf-service:8000
+      SEED_PASSWORD_SAMUEL: ${SEED_PASSWORD_SAMUEL:-}
+      SEED_PASSWORD_ALBERT: ${SEED_PASSWORD_ALBERT:-}
+      SEED_PASSWORD_GABRIEL: ${SEED_PASSWORD_GABRIEL:-}
+      SEED_PASSWORD_EMANUEL: ${SEED_PASSWORD_EMANUEL:-}
+
+  web:
+    build: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - backend
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3102}:80"
+
+volumes:
+  pgdata:
+  miniodata:
