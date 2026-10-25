@@ -147,9 +147,9 @@ const HIGHLIGHTS = ['#fff1a8', '#ffd6e0', '#cfe3ff', '#d4f5e4', '#e4d9ff'];
     }`,
   styles: [`
     :host { display: block; }
-    .toolbar { position: sticky; top: var(--sticky-top, 0px); z-index: 20; display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; padding: 8px 12px; background: rgba(10,10,16,.94); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+    .toolbar { position: sticky; top: var(--sticky-top, 0px); z-index: 20; display: flex; align-items: center; gap: 4px 6px; flex-wrap: wrap; padding: 8px 12px; background: var(--glass); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
     .grp { display: flex; align-items: center; gap: 2px; padding-right: 8px; margin-right: 2px; border-right: 1px solid var(--line); &:last-child { border-right: 0; } }
-    .tb { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 2px; color: var(--muted); transition: background .15s, color .15s; &:hover:not(:disabled) { background: rgba(244,244,247,.08); color: var(--white); } &.on { background: rgba(112,71,255,.25); color: #fff; } &:disabled { opacity: .3; cursor: default; } &.sm { width: 24px; height: 28px; } &.danger:hover { color: var(--danger); } &.txt { width: auto; padding: 0 8px; font-size: 12px; } }
+    .tb { display: grid; place-items: center; width: 32px; height: 32px; border-radius: 2px; color: var(--muted); transition: background .15s, color .15s; &:hover:not(:disabled) { background: var(--hover-2); color: var(--white); } &.on { background: rgba(112,71,255,.25); color: #fff; } &:disabled { opacity: .3; cursor: default; } &.sm { width: 24px; height: 28px; } &.danger:hover { color: var(--danger); } &.txt { width: auto; padding: 0 8px; font-size: 12px; } }
     .tb x-icon { width: 17px; height: 17px; } .tb.sm x-icon { width: 13px; height: 13px; }
     .sel { height: 32px; background: transparent; border: 1px solid var(--line); border-radius: 2px; font-size: 13px; padding: 0 6px; color: var(--white); cursor: pointer; &:hover { border-color: var(--line-strong); } option { background: var(--surface-2); } }
     .w-style { width: 104px; } .w-font { width: 128px; } .w-size { width: 52px; text-align: center; padding: 0 2px; } .w-lh { width: 100px; }
@@ -159,7 +159,7 @@ const HIGHLIGHTS = ['#fff1a8', '#ffd6e0', '#cfe3ff', '#d4f5e4', '#e4d9ff'];
     .pop { position: absolute; top: 38px; left: 0; z-index: 30; background: var(--surface-3); border: 1px solid var(--line-strong); padding: 10px; display: flex; flex-direction: column; gap: 8px; width: 190px; animation: fade .15s; }
     .sw { display: flex; flex-wrap: wrap; gap: 6px; } .dot { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-strong); }
     .cp { width: 100%; height: 30px; background: transparent; border: 1px solid var(--line); cursor: pointer; }
-    .stage { padding: 32px 16px 120px; overflow-x: auto; }
+    .stage { padding: 32px 16px 120px; overflow-x: auto; background: var(--stage); }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
     @media (max-width: 900px) {
       .toolbar { flex-wrap: nowrap; overflow-x: auto; padding: 6px 8px; } .grp { flex: none; }
@@ -259,7 +259,10 @@ export class EditorComponent implements AfterViewInit, OnChanges, OnDestroy {
     if (cmd === 'mergeOrSplit') c.mergeOrSplit().run(); else c[cmd]().run();
   }
   cellBg(color: string | null) {
-    this.editor!.chain().focus().setCellAttribute('backgroundColor', color).run();
+    const cur = (this.editor!.getAttributes('tableCell')['cellStyle'] ?? this.editor!.getAttributes('tableHeader')['cellStyle'] ?? '') as string;
+    const rest = cur.split(';').map((s) => s.trim()).filter((s) => s && !/^background-color\s*:/i.test(s));
+    if (color) rest.push(`background-color: ${color}`);
+    this.editor!.chain().focus().setCellAttribute('cellStyle', rest.length ? rest.join('; ') : null).run();
     this.pop.set('');
   }
   insertTable() {

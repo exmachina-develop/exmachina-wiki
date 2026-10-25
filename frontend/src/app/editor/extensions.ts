@@ -71,10 +71,10 @@ export const LineHeight = Extension.create({
 });
 
 const cellBg = {
-  backgroundColor: {
+  cellStyle: {
     default: null,
-    parseHTML: (el: HTMLElement) => el.style.backgroundColor || null,
-    renderHTML: (a: Record<string, any>) => (a['backgroundColor'] ? { style: `background-color: ${a['backgroundColor']}` } : {}),
+    parseHTML: (el: HTMLElement) => el.getAttribute('style') || null,
+    renderHTML: (a: Record<string, any>) => (a['cellStyle'] ? { style: a['cellStyle'] } : {}),
   },
 };
 

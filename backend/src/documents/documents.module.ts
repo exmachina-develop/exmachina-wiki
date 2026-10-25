@@ -25,11 +25,21 @@ import { IsBoolean, IsIn, IsInt, IsNumber, IsObject, IsOptional, IsString, IsUUI
 import { Response } from 'express';
 import { Brackets, Repository } from 'typeorm';
 import sanitizeHtml from 'sanitize-html';
-import { DocumentEntity, DocumentVersion, FileAsset, PageSettings } from '../entities';
+import { AttachmentInfo, DocumentEntity, DocumentVersion, FileAsset, PageSettings } from '../entities';
 import { AuthUser, CurrentUser, RequirePermissions, can } from '../common/permissions';
 import { AccessService, SpacesModule } from '../spaces/spaces.module';
 import { FilesModule, FilesService } from '../files/files.module';
 import { ForbiddenException } from '@nestjs/common';
+
+type ImportKind = 'pdf';
+const IMPORT_MIME: Record<ImportKind, string> = { pdf: 'application/pdf' };
+const ATTACH_EXT_MIME: Record<string, string> = {
+  pdf: 'application/pdf',
+  docx: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+  xlsx: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+  pptx: 'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+};
+const ATTACH_MIMES = [...Object.values(ATTACH_EXT_MIME), 'image/png', 'image/jpeg', 'text/plain', 'text/csv', 'application/zip'];
 
 const DEFAULT_PAGE: PageSettings = { size: 'A4', orientation: 'portrait', margin: 20 };
 const FILE_URL_RE = /\/api\/files\/([0-9a-f-]{36})\/raw/gi;
@@ -72,6 +82,10 @@ const ALLOWED_STYLES = {
     height: [/^\d+(\.\d+)?(px|%|em|pt)$/],
     'vertical-align': [/^(top|middle|bottom|baseline)$/],
     'margin-left': [/^\d+(\.\d+)?(px|pt|em|rem)$/],
+    border: [/^[\w\s#(),.%-]+$/],
+    'border-bottom': [/^[\w\s#(),.%-]+$/],
+    'border-top': [/^[\w\s#(),.%-]+$/],
+    padding: [/^\d+(\.\d+)?(px|pt|em|rem)?(\s+\d+(\.\d+)?(px|pt|em|rem)?){0,3}$/],
   },
 };
 
@@ -119,9 +133,9 @@ const brief = (d: DocumentEntity) => ({
 export class PdfClient {
   private base = process.env.PDF_SERVICE_URL ?? 'http://pdf-service:8000';
 
-  async toHtml(buf: Buffer, filename: string): Promise<{ html: string; title: string; pages: number; warnings: string[] }> {
+  async toHtml(buf: Buffer, filename: string, kind: ImportKind = 'pdf'): Promise<{ html: string; title: string; pages: number; warnings: string[]; page?: PageSettings }> {
     const form = new FormData();
-    form.append('file', new Blob([new Uint8Array(buf)], { type: 'application/pdf' }), filename);
+    form.append('file', new Blob([new Uint8Array(buf)], { type: IMPORT_MIME[kind] }), filename);
     const res = await this.call('/pdf/to-html', { method: 'POST', body: form });
     return res.json() as any;
   }
@@ -221,6 +235,7 @@ export class DocumentsService {
       content: d.content,
       pageSettings: d.pageSettings,
       sourceFileId: d.sourceFileId,
+      attachments: d.attachments ?? [],
       space: { id: d.space.id, key: d.space.key, name: d.space.name, icon: d.space.icon },
       access: { canEdit: a.canEdit && can(user, 'documents.edit'), canDelete: a.canEdit && can(user, 'documents.delete'), canExport: can(user, 'documents.export') },
     };
@@ -346,18 +361,21 @@ export class DocumentsService {
     return this.get(user, d.id);
   }
 
-  /** PDF → editable document. The original PDF is kept in MinIO and linked to the document. */
-  async importPdf(user: AuthUser, file: Express.Multer.File | undefined, spaceId: string, parentId?: string) {
-    if (!can(user, 'documents.import') || !can(user, 'documents.create')) throw new ForbiddenException('No tienes permiso para importar PDF');
-    if (!file) throw new BadRequestException('Falta el archivo PDF');
-    if (file.mimetype !== 'application/pdf' || file.buffer.subarray(0, 5).toString() !== '%PDF-') throw new BadRequestException('El archivo no es un PDF válido');
+  /** PDF → editable document. The original is kept in MinIO as an attachment. */
+  async importFile(user: AuthUser, file: Express.Multer.File | undefined, spaceId: string, parentId?: string) {
+    if (!can(user, 'documents.import') || !can(user, 'documents.create')) throw new ForbiddenException('No tienes permiso para importar archivos');
+    if (!file) throw new BadRequestException('Falta el archivo');
+    const filename = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    const ext = (filename.split('.').pop() ?? '').toLowerCase() as ImportKind;
+    if (!(ext in IMPORT_MIME)) throw new BadRequestException('Formato no soportado: solo PDF');
+    const magic = file.buffer.subarray(0, 5).toString('latin1');
+    if (ext === 'pdf' ? magic !== '%PDF-' : !magic.startsWith('PK')) throw new BadRequestException(`El archivo no es un .${ext} válido`);
     const space = await this.access.resolve(spaceId);
     await this.access.requireEdit(user, space);
     if (parentId) await this.assertParent(space.id, parentId);
 
-    const filename = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    const result = await this.pdf.toHtml(file.buffer, filename);
-    const original = await this.files.save(file.buffer, filename, 'application/pdf', user.id, 'pdf');
+    const result = await this.pdf.toHtml(file.buffer, filename, ext);
+    const original = await this.files.save(file.buffer, filename, IMPORT_MIME[ext], user.id, ext === 'pdf' ? 'pdf' : 'attachment');
 
     // Extract embedded data-URI images into MinIO.
     let html = result.html;
@@ -368,7 +386,7 @@ export class DocumentsService {
       html = html.split(uri).join(`/api/files/${f.id}/raw`);
     }
     const content = sanitizeDoc(html);
-    const title = (result.title || filename.replace(/\.pdf$/i, '')).slice(0, 250);
+    const title = filename.replace(/\.[a-z0-9]+$/i, '').replace(/[_]+/g, ' ').trim().slice(0, 250) || result.title;
     const d = await this.docs.save(
       this.docs.create({
         spaceId: space.id,
@@ -376,14 +394,43 @@ export class DocumentsService {
         title,
         content,
         contentText: toText(content),
-        source: 'pdf',
+        source: ext,
+        pageSettings: result.page ? { ...DEFAULT_PAGE, ...result.page } : DEFAULT_PAGE,
         sourceFileId: original.id,
+        attachments: [{ id: original.id, filename: original.filename, mime: original.mime, size: original.size }],
         authorId: user.id,
         updatedById: user.id,
         position: await this.nextPosition(space.id, parentId ?? null),
       }),
     );
     return { document: await this.get(user, d.id), warnings: result.warnings, pages: result.pages };
+  }
+
+  async addAttachment(user: AuthUser, id: string, file: Express.Multer.File | undefined) {
+    const d = await this.load(id);
+    await this.access.requireEdit(user, d.space);
+    if (!can(user, 'documents.edit') || !can(user, 'files.upload')) throw new ForbiddenException('No tienes permiso para adjuntar archivos');
+    if (!file) throw new BadRequestException('Falta el archivo');
+    const filename = Buffer.from(file.originalname, 'latin1').toString('utf8');
+    const ext = (filename.split('.').pop() ?? '').toLowerCase();
+    const mime = ATTACH_EXT_MIME[ext] ?? file.mimetype;
+    if (!ATTACH_MIMES.includes(mime)) throw new BadRequestException('Tipo de archivo no permitido');
+    const f = await this.files.save(file.buffer, filename, mime, user.id, mime === 'application/pdf' ? 'pdf' : 'attachment');
+    d.attachments = [...(d.attachments ?? []), { id: f.id, filename: f.filename, mime: f.mime, size: f.size }];
+    d.updatedById = user.id;
+    d.updatedBy = null;
+    await this.docs.save(d);
+    return this.get(user, d.id);
+  }
+
+  async removeAttachment(user: AuthUser, id: string, fileId: string) {
+    const d = await this.load(id);
+    await this.access.requireEdit(user, d.space);
+    if (!can(user, 'documents.edit')) throw new ForbiddenException('No tienes permiso para quitar adjuntos');
+    d.attachments = (d.attachments ?? []).filter((a: AttachmentInfo) => a.id !== fileId);
+    if (d.sourceFileId === fileId) d.sourceFileId = null;
+    await this.docs.save(d);
+    return this.get(user, d.id);
   }
 
   /** Document → PDF with the editor formatting (WeasyPrint in the Python service). */
@@ -427,7 +474,15 @@ export class DocumentsController {
   @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
   import(@CurrentUser() u: AuthUser, @UploadedFile() file: Express.Multer.File, @Body('spaceId') spaceId: string, @Body('parentId') parentId?: string) {
     if (!spaceId) throw new BadRequestException('spaceId es obligatorio');
-    return this.svc.importPdf(u, file, spaceId, parentId || undefined);
+    return this.svc.importFile(u, file, spaceId, parentId || undefined);
+  }
+  @Post(':id/attachments')
+  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
+  addAttachment(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @UploadedFile() file: Express.Multer.File) {
+    return this.svc.addAttachment(u, id, file);
+  }
+  @Delete(':id/attachments/:fileId') removeAttachment(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Param('fileId', ParseUUIDPipe) fileId: string) {
+    return this.svc.removeAttachment(u, id, fileId);
   }
   @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateDocDto) {
     return this.svc.create(u, dto);

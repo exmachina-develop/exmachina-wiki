@@ -45,4 +45,4 @@ def html_to_pdf(html: str, title: str, size: str, orientation: str, margin: floa
     }}
     """
     doc = f'<!doctype html><html lang="es"><head><meta charset="utf-8"><title>{escape(title)}</title></head><body>{html}</body></html>'
-    return HTML(string=doc, url_fetcher=_fetcher).write_pdf(stylesheets=[CSS(string=BASE_CSS), CSS(string=page_css)])
+    return HTML(string=doc, url_fetcher=_fetcher, base_url=None).write_pdf(stylesheets=[CSS(string=BASE_CSS), CSS(string=page_css)], presentational_hints=True)

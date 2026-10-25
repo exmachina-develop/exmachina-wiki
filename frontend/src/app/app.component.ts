@@ -1,6 +1,7 @@
 import { Component, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Toasts } from './core/toast.service';
+import { ThemeService } from './core/theme.service';
 
 @Component({
   selector: 'app-root',
@@ -23,4 +24,5 @@ import { Toasts } from './core/toast.service';
 })
 export class AppComponent {
   toasts = inject(Toasts);
+  private theme = inject(ThemeService);
 }

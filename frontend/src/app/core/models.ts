@@ -29,8 +29,9 @@ export interface DocBrief {
   author: UserRef | null; updatedBy: UserRef | null;
   space?: { id: string; key: string; name: string; icon: string };
 }
+export interface Attachment { id: string; filename: string; mime: string; size: number }
 export interface Doc extends DocBrief {
-  content: string; pageSettings: PageSettings; sourceFileId: string | null;
+  content: string; pageSettings: PageSettings; sourceFileId: string | null; attachments: Attachment[];
   space: { id: string; key: string; name: string; icon: string };
   access: { canEdit: boolean; canDelete: boolean; canExport: boolean };
 }

@@ -1,11 +1,12 @@
 import { Component, HostListener, OnDestroy, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
+import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { Api } from '../core/api.service';
-import { Doc, DocVersion, PageSettings } from '../core/models';
+import { Attachment, Doc, DocVersion, PageSettings } from '../core/models';
 import { SpacesStore } from '../core/spaces.store';
 import { Toasts } from '../core/toast.service';
+import { Auth } from '../core/auth.service';
 import { EditorComponent } from '../editor/editor.component';
 import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shared/ui';
 
@@ -21,7 +22,13 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
         </nav>
         <div class="right">
           <span class="status eyebrow" [class.err]="status() === 'error'">{{ statusText() }}</span>
-          @if (d.access.canEdit) {
+          @if (d.source === 'pdf' && d.sourceFileId) {
+            <div class="seg" role="tablist" aria-label="Vista del documento">
+              <button role="tab" [class.on]="view() === 'original'" (click)="setView('original')">Original</button>
+              <button role="tab" [class.on]="view() === 'edit'" (click)="setView('edit')">Editable</button>
+            </div>
+          }
+          @if (d.access.canEdit && view() === 'edit') {
             <button class="btn sm" [class.ghost]="!editing()" (click)="toggleEdit()"><x-icon [name]="editing() ? 'eye' : 'edit'" /> <span class="lbl">{{ editing() ? 'Ver' : 'Editar' }}</span></button>
           }
           <button class="btn ghost sm" (click)="openHistory()"><x-icon name="history" /> <span class="lbl">Historial</span></button>
@@ -60,7 +67,35 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
         </div>
       </div>
 
-      <app-editor [content]="d.content" [editable]="editing()" [settings]="settings()" (contentChange)="onContent($event)" />
+      @if (d.attachments.length || (d.access.canEdit && auth.can('files.upload'))) {
+        <div class="attach no-print">
+          <span class="eyebrow">Archivos</span>
+          @for (a of d.attachments; track a.id) {
+            <span class="file">
+              <button class="fname" (click)="download(a)" [title]="'Descargar ' + a.filename"><x-icon [name]="a.mime === 'application/pdf' ? 'pdf' : 'file'" /> {{ a.filename }} <small>{{ size(a.size) }}</small></button>
+              @if (d.access.canEdit) { <button class="x" (click)="removeFile(a)" aria-label="Quitar archivo"><x-icon name="close" /></button> }
+            </span>
+          }
+          @if (d.access.canEdit && auth.can('files.upload')) {
+            <button class="btn ghost sm" (click)="attachInput.click()"><x-icon name="plus" /> Adjuntar</button>
+            <input #attachInput type="file" hidden (change)="attach($event)" accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.txt,.csv,.zip">
+          }
+        </div>
+      }
+
+      @if (view() === 'original') {
+        <div class="orig">
+          <div class="orig-bar no-print">
+            <span class="muted">PDF original, sin conversión.</span>
+            <button class="btn subtle sm" (click)="openOriginal()"><x-icon name="arrowUR" /> Abrir en pestaña nueva</button>
+          </div>
+          @if (pdfUrl()) { <iframe class="pdf-frame" [src]="pdfUrl()!" title="PDF original"></iframe> }
+          @else { <div class="empty"><span class="spinner"></span></div> }
+        </div>
+      }
+      <div [hidden]="view() === 'original'">
+        <app-editor [content]="d.content" [editable]="editing()" [settings]="settings()" (contentChange)="onContent($event)" />
+      </div>
 
       @if (pageDlg()) {
         <x-modal (closed)="pageDlg.set(false)">
@@ -104,19 +139,26 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
     @else { <div class="page"><div class="empty"><span class="spinner"></span></div></div> }`,
   styles: [`
     :host { display: block; --sticky-top: var(--topbar-h-doc, 56px); }
-    .bar { position: sticky; top: 0; z-index: 30; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; background: rgba(5,5,9,.92); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+    .bar { position: sticky; top: 0; z-index: 30; height: 56px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 20px; background: var(--glass); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
     .crumbs { display: flex; align-items: center; gap: 8px; font-size: 13px; color: var(--muted); min-width: 0; a:hover { color: var(--white); } x-icon { width: 13px; height: 13px; flex: none; } .cur { color: var(--white); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } }
     .right { display: flex; align-items: center; gap: 8px; flex: none; }
     .status { margin-right: 6px; &.err { color: var(--danger); } }
-    .menu-wrap { position: relative; } .menu { position: absolute; right: 0; top: 38px; min-width: 210px; background: var(--surface-3); border: 1px solid var(--line-strong); padding: 6px; z-index: 40; animation: fade .15s; button { display: flex; align-items: center; gap: 12px; width: 100%; height: 38px; padding: 0 12px; font-size: 14px; color: var(--muted); text-align: left; &:hover { background: rgba(244,244,247,.06); color: var(--white); } &.del:hover { color: var(--danger); } x-icon { width: 16px; height: 16px; } } }
-    .notice { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(112,71,255,.1); border-bottom: 1px solid rgba(112,71,255,.35); font-size: 14px; span { flex: 1; } a { margin-left: 8px; color: #b9a6ff; text-decoration: underline; cursor: pointer; } }
+    .menu-wrap { position: relative; } .menu { position: absolute; right: 0; top: 38px; min-width: 210px; background: var(--surface-3); border: 1px solid var(--line-strong); padding: 6px; z-index: 40; animation: fade .15s; button { display: flex; align-items: center; gap: 12px; width: 100%; height: 38px; padding: 0 12px; font-size: 14px; color: var(--muted); text-align: left; &:hover { background: var(--hover-2); color: var(--white); } &.del:hover { color: var(--danger); } x-icon { width: 16px; height: 16px; } } }
+    .notice { display: flex; align-items: center; gap: 12px; padding: 12px 20px; background: rgba(112,71,255,.1); border-bottom: 1px solid rgba(112,71,255,.35); font-size: 14px; span { flex: 1; } a { margin-left: 8px; color: var(--violet-text); text-decoration: underline; cursor: pointer; } }
     .head { max-width: 210mm; margin: 0 auto; padding: 36px 16px 0; }
     .title-input { width: 100%; background: transparent; border: 0; border-bottom: 1px solid transparent; font-size: clamp(30px, 4.4vw, 48px); font-weight: 300; letter-spacing: -.035em; line-height: 1.08; color: var(--white); padding: 0 0 12px; word-break: break-word; &:focus { outline: none; border-bottom-color: var(--violet); } &::placeholder { color: var(--gray); } &.ro { margin: 0; } }
     .byline { display: flex; align-items: center; gap: 8px; font-size: 13px; padding: 8px 0 4px; flex-wrap: wrap; } .byline .dot { opacity: .5; }
+    .seg { display: flex; border: 1px solid var(--line-strong); padding: 2px; border-radius: 2px; button { height: 28px; padding: 0 12px; font-size: 13px; color: var(--muted); border-radius: 2px; &.on { background: var(--white); color: var(--black); } } }
+    .attach { max-width: 210mm; margin: 14px auto 0; padding: 0 16px; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+    .file { display: inline-flex; align-items: center; border: 1px solid var(--line-strong); border-radius: 2px; }
+    .fname { display: inline-flex; align-items: center; gap: 8px; height: 30px; padding: 0 10px; font-size: 13px; color: var(--white); max-width: 340px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; &:hover { background: var(--hover); } small { color: var(--gray-light); } x-icon { width: 15px; height: 15px; flex: none; } }
+    .x { width: 28px; height: 30px; display: grid; place-items: center; color: var(--gray-light); border-left: 1px solid var(--line); &:hover { color: var(--danger); } x-icon { width: 13px; height: 13px; } }
+    .orig { max-width: 1100px; margin: 16px auto 0; padding: 0 16px 24px; } .orig-bar { display: flex; justify-content: space-between; align-items: center; font-size: 13px; padding-bottom: 8px; }
+    .pdf-frame { width: 100%; height: calc(100dvh - 300px); min-height: 560px; border: 1px solid var(--line-strong); background: #fff; }
     .vlist { display: flex; flex-direction: column; border: 1px solid var(--line); max-height: 260px; overflow: auto; } .vrow { display: flex; align-items: center; gap: 10px; padding: 4px 12px; border-bottom: 1px solid var(--line); &:last-child { border: 0; } &.sel { background: rgba(112,71,255,.1); } }
     .vmain { flex: 1; text-align: left; padding: 8px 0; display: flex; flex-direction: column; min-width: 0; b { font-weight: 400; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } small { color: var(--gray-light); font-size: 12px; } }
     .vprev { margin-top: 20px; .vp { zoom: .6; margin-top: 10px; min-height: 0; max-height: 520px; overflow: auto; width: 100% !important; padding: 28px; } }
-    @media (max-width: 900px) { .bar { padding: 0 10px; top: var(--topbar-h); } .lbl, .status { display: none; } .crumbs a { display: none; } .crumbs x-icon { display: none; } :host { --sticky-top: calc(var(--topbar-h) + 56px); } .head { padding-top: 24px; } }
+    @media (max-width: 900px) { .seg button { padding: 0 8px; } .pdf-frame { height: 70dvh; } .bar { padding: 0 10px; top: var(--topbar-h); } .lbl, .status { display: none; } .crumbs a { display: none; } .crumbs x-icon { display: none; } :host { --sticky-top: calc(var(--topbar-h) + 56px); } .head { padding-top: 24px; } }
   `],
 })
 export class DocComponent implements OnDestroy {
@@ -125,6 +167,7 @@ export class DocComponent implements OnDestroy {
   private toasts = inject(Toasts);
   private store = inject(SpacesStore);
   private sanitizer = inject(DomSanitizer);
+  auth = inject(Auth);
 
   id = input.required<string>();
   edit = input<string>();
@@ -144,6 +187,9 @@ export class DocComponent implements OnDestroy {
   preview = signal<DocVersion | null>(null);
   previewHtml = signal<SafeHtml>('');
   imported = signal(false);
+  view = signal<'original' | 'edit'>('edit');
+  pdfUrl = signal<SafeResourceUrl | null>(null);
+  private pdfRaw: string | null = null;
   settings = computed<PageSettings | null>(() => this.doc()?.pageSettings ?? null);
   draft: PageSettings = { size: 'A4', orientation: 'portrait', margin: 20 };
   rel = relTime;
@@ -177,9 +223,45 @@ export class DocComponent implements OnDestroy {
       this.status.set('idle');
       this.editing.set(!!this.edit() && d.access.canEdit);
       this.imported.set(!!this.importedQ());
+      this.freePdf();
+      const pdfFirst = d.source === 'pdf' && !!d.sourceFileId && !this.edit();
+      this.view.set(pdfFirst ? 'original' : 'edit');
+      if (pdfFirst) this.loadPdf(d.sourceFileId!);
     } catch (e: any) {
       this.error.set(e?.status === 403 ? 'No tienes acceso a este documento.' : 'Documento no encontrado.');
     }
+  }
+
+  setView(v: 'original' | 'edit') {
+    if (v === 'original') this.flush();
+    this.view.set(v);
+    if (v === 'original' && !this.pdfUrl() && this.doc()?.sourceFileId) this.loadPdf(this.doc()!.sourceFileId!);
+  }
+
+  private async loadPdf(fileId: string) {
+    try {
+      const blob = await this.api.fileBlob(fileId);
+      this.pdfRaw = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+      this.pdfUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfRaw));
+    } catch (e) { this.toasts.error(e, 'No se pudo cargar el PDF original'); }
+  }
+  private freePdf() { if (this.pdfRaw) URL.revokeObjectURL(this.pdfRaw); this.pdfRaw = null; this.pdfUrl.set(null); }
+
+  size(n: number) { return n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; }
+
+  async download(a: Attachment) {
+    try { this.download_(await this.api.fileBlob(a.id), a.filename); } catch (e) { this.toasts.error(e, 'No se pudo descargar el archivo'); }
+  }
+  async attach(ev: Event) {
+    const input = ev.target as HTMLInputElement;
+    const f = input.files?.[0];
+    input.value = '';
+    if (!f) return;
+    try { this.doc.set(await this.api.addAttachment(this.doc()!.id, f)); this.toasts.ok('Archivo adjuntado'); } catch (e) { this.toasts.error(e, 'No se pudo adjuntar'); }
+  }
+  async removeFile(a: Attachment) {
+    if (!confirm(`¿Quitar «${a.filename}» de este documento?`)) return;
+    try { this.doc.set(await this.api.removeAttachment(this.doc()!.id, a.id)); } catch (e) { this.toasts.error(e); }
   }
 
   toggleEdit() {
@@ -226,7 +308,7 @@ export class DocComponent implements OnDestroy {
 
   @HostListener('window:beforeunload', ['$event'])
   beforeUnload(e: BeforeUnloadEvent) { if (this.status() === 'dirty' || this.status() === 'saving') { this.flush(); e.preventDefault(); } }
-  ngOnDestroy() { this.flush(); }
+  ngOnDestroy() { this.flush(); this.freePdf(); }
 
   async exportPdf() {
     const d = this.doc()!;
@@ -234,7 +316,7 @@ export class DocComponent implements OnDestroy {
     this.exporting.set(true);
     try {
       const blob = await this.api.exportPdf(d.id);
-      this.download(blob, `${d.title.replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]+/g, '').trim() || 'documento'}.pdf`);
+      this.download_(blob, `${d.title.replace(/[^\w\- áéíóúñÁÉÍÓÚÑ]+/g, '').trim() || 'documento'}.pdf`);
     } catch (e: any) {
       this.toasts.show(e?.error instanceof Blob ? 'No se pudo exportar el PDF' : e?.error?.message || 'No se pudo exportar el PDF', 'error');
     } finally { this.exporting.set(false); }
@@ -247,7 +329,7 @@ export class DocComponent implements OnDestroy {
     } catch (e) { this.toasts.error(e, 'No se pudo abrir el PDF original'); }
   }
 
-  private download(blob: Blob, name: string) {
+  private download_(blob: Blob, name: string) {
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url; a.download = name; a.click();

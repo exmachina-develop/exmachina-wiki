@@ -142,7 +142,7 @@ export class OrgNodeComponent {
       </x-modal>
     }`,
   styles: [`
-    .sub { margin-top: 14px; } .chart { overflow-x: auto; padding: 8px 0 40px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); background-image: radial-gradient(rgba(244,244,247,.05) 1px, transparent 1px); background-size: 22px 22px; }
+    .sub { margin-top: 14px; } .chart { overflow-x: auto; padding: 8px 0 40px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); background-image: radial-gradient(var(--hover) 1px, transparent 1px); background-size: 22px 22px; }
     .trees { display: flex; gap: 40px; justify-content: safe center; padding: 40px 32px; min-width: min-content; }
     .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; } .colors { display: flex; gap: 8px; } .dot { width: 28px; height: 28px; border-radius: 50%; border: 2px solid transparent; &.on { border-color: var(--white); } }
     .mlist { display: flex; flex-direction: column; gap: 8px; } .mrow { display: grid; grid-template-columns: 24px minmax(90px, 1fr) minmax(120px, 1.2fr) auto 30px; gap: 12px; align-items: center; } .mrow.ro { grid-template-columns: 24px 1fr auto; }

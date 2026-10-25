@@ -52,6 +52,8 @@ const P: Record<string, string> = {
   sub: '<path d="M4 6l8 10M12 6L4 16M17 20h4c0-2-4-2-4-4a2 2 0 014 0" />',
   sup: '<path d="M4 8l8 10M12 8L4 18M17 8h4c0-2-4-2-4-4a2 2 0 014 0" />',
   indent: '<path d="M4 6h16M12 10h8M12 14h8M4 18h16M4 9l3 3-3 3"/>',
+  sun: '<circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/>',
+  moon: '<path d="M20 14.5A8 8 0 019.500 4 8 8 0 1020 14.500z"/>',
   eye: '<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>',
   more: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
   rowAdd: '<rect x="3" y="4" width="18" height="10"/><path d="M3 9h18M12 17v4M10 19h4"/>',

@@ -2,14 +2,16 @@ import { Component, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, Router } from '@angular/router';
 import { Auth } from '../core/auth.service';
+import { ThemeService } from '../core/theme.service';
+import { IconComponent } from '../shared/ui';
 
 @Component({
   selector: 'app-login',
   standalone: true,
-  imports: [FormsModule],
+  imports: [FormsModule, IconComponent],
   template: `
     <main class="login">
-      <header><img src="img/logo.png" alt="EXMACHINA®" class="logo"></header>
+      <header><img src="img/logo.png" alt="EXMACHINA®" class="logo"><button class="btn subtle icon sm" type="button" (click)="theme.toggle()" [attr.aria-label]="theme.mode() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'"><x-icon [name]="theme.mode() === 'dark' ? 'sun' : 'moon'" /></button></header>
 
       <section class="hero">
         <span class="eyebrow">Wiki · Conocimiento interno</span>
@@ -38,10 +40,10 @@ import { Auth } from '../core/auth.service';
   styles: [`
     .login { min-height: 100dvh; display: grid; grid-template-columns: 1.2fr 1fr; grid-template-rows: auto 1fr auto; padding: 32px 48px; column-gap: 64px;
       background: radial-gradient(800px 500px at 15% 90%, rgba(112,71,255,.14), transparent 60%), radial-gradient(600px 400px at 90% 10%, rgba(65,107,255,.10), transparent 60%), var(--black); }
-    header { grid-column: 1 / -1; } .logo { height: 17px; width: auto; }
+    header { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; } .logo { height: 17px; width: auto; }
     .hero { align-self: end; padding-bottom: 8vh; grid-row: 2; } .hero .eyebrow { display: block; margin-bottom: 24px; }
     .lead { max-width: 420px; margin-top: 28px; font-size: 18px; line-height: 1.45; }
-    .panel { grid-row: 2; align-self: center; width: 100%; max-width: 420px; justify-self: end; padding: 36px; border: 1px solid var(--line); background: rgba(10,10,16,.7); backdrop-filter: blur(10px); }
+    .panel { grid-row: 2; align-self: center; width: 100%; max-width: 420px; justify-self: end; padding: 36px; border: 1px solid var(--line); background: var(--glass); backdrop-filter: blur(10px); }
     .panel .eyebrow { display: block; margin-bottom: 28px; } .panel .btn { width: 100%; height: 44px; margin-top: 8px; }
     footer { grid-column: 1 / -1; padding-top: 24px; }
     @media (max-width: 900px) { .login { grid-template-columns: 1fr; padding: 24px 20px; } .hero { grid-row: 2; align-self: start; padding: 8vh 0 32px; } .panel { grid-row: 3; justify-self: stretch; max-width: none; padding: 24px 20px; } footer { grid-row: 4; } }
@@ -49,6 +51,7 @@ import { Auth } from '../core/auth.service';
 })
 export class LoginComponent {
   private auth = inject(Auth);
+  theme = inject(ThemeService);
   private router = inject(Router);
   private route = inject(ActivatedRoute);
   email = '';

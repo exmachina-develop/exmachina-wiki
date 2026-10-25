@@ -3,6 +3,7 @@ import { NavigationEnd, Router, RouterLink, RouterLinkActive, RouterOutlet } fro
 import { FormsModule } from '@angular/forms';
 import { filter } from 'rxjs';
 import { Auth } from '../core/auth.service';
+import { ThemeService } from '../core/theme.service';
 import { SpacesStore } from '../core/spaces.store';
 import { AvatarComponent, IconComponent } from '../shared/ui';
 
@@ -52,6 +53,7 @@ import { AvatarComponent, IconComponent } from '../shared/ui';
           <x-avatar [name]="auth.user()?.name ?? ''" [color]="auth.user()?.color ?? ''" />
           <span><b>{{ auth.user()?.name }}</b><small>{{ auth.user()?.role?.name }}</small></span>
         </a>
+        <button class="btn subtle icon sm" (click)="theme.toggle()" [attr.aria-label]="theme.mode() === 'dark' ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'" [title]="theme.mode() === 'dark' ? 'Modo claro' : 'Modo oscuro'"><x-icon [name]="theme.mode() === 'dark' ? 'sun' : 'moon'" /></button>
         <button class="btn subtle icon sm" (click)="auth.logout()" aria-label="Cerrar sesión" title="Cerrar sesión"><x-icon name="logout" /></button>
       </div>
     </aside>
@@ -59,7 +61,7 @@ import { AvatarComponent, IconComponent } from '../shared/ui';
     <main class="content"><router-outlet /></main>`,
   styles: [`
     :host { display: block; }
-    .topbar { display: none; position: sticky; top: 0; z-index: 40; height: var(--topbar-h); align-items: center; justify-content: space-between; padding: 0 12px; background: rgba(5,5,9,.88); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
+    .topbar { display: none; position: sticky; top: 0; z-index: 40; height: var(--topbar-h); align-items: center; justify-content: space-between; padding: 0 12px; background: var(--glass); backdrop-filter: blur(12px); border-bottom: 1px solid var(--line); }
     .brand img { height: 15px; width: auto; }
     .scrim { position: fixed; inset: 0; background: rgba(2,2,6,.7); z-index: 49; animation: fade .2s; }
     .sidebar { position: fixed; inset: 0 auto 0 0; width: var(--sidebar-w); z-index: 50; background: var(--black); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 24px 16px 16px; gap: 22px; overflow-y: auto; }
@@ -69,12 +71,12 @@ import { AvatarComponent, IconComponent } from '../shared/ui';
     .search input { width: 100%; height: 38px; padding: 0 12px 0 36px; background: var(--surface); border: 1px solid var(--line); border-radius: 2px; font-size: 14px; &:focus { outline: none; border-color: var(--violet); } &::placeholder { color: var(--gray); } }
     nav { display: flex; flex-direction: column; gap: 2px; }
     nav a, .spaces a { display: flex; align-items: center; gap: 12px; height: 38px; padding: 0 12px; border-radius: 2px; font-size: 14px; color: var(--muted); transition: color .2s, background .2s; }
-    nav a:hover, .spaces a:hover { color: var(--white); background: rgba(244,244,247,.05); }
+    nav a:hover, .spaces a:hover { color: var(--white); background: var(--hover); }
     nav a.active, .spaces a.active { color: var(--white); background: rgba(112,71,255,.14); box-shadow: inset 2px 0 0 var(--violet); }
     .group { display: flex; flex-direction: column; gap: 10px; min-height: 0; flex: 1; } .group .eyebrow { padding: 0 12px; }
     .spaces { display: flex; flex-direction: column; gap: 2px; } .spaces .ico { width: 18px; text-align: center; color: var(--violet); } .spaces .nm { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .spaces x-icon { width: 13px; height: 13px; color: var(--gray); }
-    .me { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding-top: 14px; border-top: 1px solid var(--line); }
-    .who { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 4px 6px; border-radius: 2px; &:hover { background: rgba(244,244,247,.05); } }
+    .me { display: flex; align-items: center; justify-content: space-between; gap: 4px; padding-top: 14px; border-top: 1px solid var(--line); }
+    .who { display: flex; align-items: center; gap: 10px; min-width: 0; padding: 4px 6px; border-radius: 2px; &:hover { background: var(--hover); } }
     .who span { display: flex; flex-direction: column; min-width: 0; line-height: 1.25; } .who b { font-weight: 400; font-size: 14px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; } .who small { font-size: 12px; color: var(--gray-light); }
     .content { margin-left: var(--sidebar-w); min-height: 100vh; }
     @media (max-width: 900px) {
@@ -87,6 +89,7 @@ import { AvatarComponent, IconComponent } from '../shared/ui';
 })
 export class ShellComponent implements OnInit {
   auth = inject(Auth);
+  theme = inject(ThemeService);
   store = inject(SpacesStore);
   private router = inject(Router);
   open = signal(false);

@@ -14,6 +14,13 @@ import {
 export type SpaceVisibility = 'company' | 'private';
 export type SpaceRole = 'admin' | 'editor' | 'viewer';
 
+export interface AttachmentInfo {
+  id: string;
+  filename: string;
+  mime: string;
+  size: number;
+}
+
 export interface PageSettings {
   size: 'A4' | 'Letter';
   orientation: 'portrait' | 'landscape';
@@ -113,6 +120,7 @@ export class DocumentEntity {
   @Column({ type: 'text', default: '' }) contentText: string;
   @Column({ type: 'varchar', default: 'native' }) source: 'native' | 'pdf';
   @Column({ type: 'uuid', nullable: true }) sourceFileId: string | null;
+  @Column({ type: 'jsonb', default: () => "'[]'" }) attachments: AttachmentInfo[];
   @Column({ type: 'jsonb', default: () => `'{"size":"A4","orientation":"portrait","margin":20}'` })
   pageSettings: PageSettings;
   @Column({ type: 'int', default: 0 }) position: number;
