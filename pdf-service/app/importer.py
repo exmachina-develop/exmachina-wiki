@@ -714,7 +714,7 @@ def pdf_to_html(data: bytes) -> dict:
         warnings.append("El PDF parece escaneado o sin texto seleccionable: se importaron solo las imágenes de las páginas.")
     if stats["diagram_pages"]:
         warnings.append(f"{stats['diagram_pages']} página(s) con diagramas o gráficos vectoriales se insertaron como imagen para conservar su aspecto.")
-    warnings.append("Usa la vista «Original» para ver el PDF exactamente como es; la vista editable es una conversión y la maquetación compleja puede variar.")
+    warnings.append("Revisa el resultado: la maquetación compleja puede variar respecto al PDF de origen.")
 
     return {
         "html": "\n".join(parts) or "<p></p>",

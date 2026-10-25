@@ -53,12 +53,6 @@ export class Api {
   };
   exportPdf = (id: string) => firstValueFrom(this.http.get(`${this.b}/documents/${id}/export/pdf`, { responseType: 'blob' }));
   fileBlob = (id: string) => firstValueFrom(this.http.get(`${this.b}/files/${id}/raw`, { responseType: 'blob' }));
-  addAttachment = (id: string, file: File) => {
-    const f = new FormData();
-    f.append('file', file);
-    return firstValueFrom(this.http.post<Doc>(`${this.b}/documents/${id}/attachments`, f));
-  };
-  removeAttachment = (id: string, fileId: string) => firstValueFrom(this.http.delete<Doc>(`${this.b}/documents/${id}/attachments/${fileId}`));
   uploadImage = (file: File) => {
     const f = new FormData();
     f.append('file', file);

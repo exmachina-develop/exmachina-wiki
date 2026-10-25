@@ -234,8 +234,6 @@ export class DocumentsService {
       ...brief(d),
       content: d.content,
       pageSettings: d.pageSettings,
-      sourceFileId: d.sourceFileId,
-      attachments: d.attachments ?? [],
       space: { id: d.space.id, key: d.space.key, name: d.space.name, icon: d.space.icon },
       access: { canEdit: a.canEdit && can(user, 'documents.edit'), canDelete: a.canEdit && can(user, 'documents.delete'), canExport: can(user, 'documents.export') },
     };
@@ -361,7 +359,7 @@ export class DocumentsService {
     return this.get(user, d.id);
   }
 
-  /** PDF → editable document. The original is kept in MinIO as an attachment. */
+  /** PDF → editable document (the original file is not stored: the wiki document is the source of truth). */
   async importFile(user: AuthUser, file: Express.Multer.File | undefined, spaceId: string, parentId?: string) {
     if (!can(user, 'documents.import') || !can(user, 'documents.create')) throw new ForbiddenException('No tienes permiso para importar archivos');
     if (!file) throw new BadRequestException('Falta el archivo');
@@ -375,7 +373,6 @@ export class DocumentsService {
     if (parentId) await this.assertParent(space.id, parentId);
 
     const result = await this.pdf.toHtml(file.buffer, filename, ext);
-    const original = await this.files.save(file.buffer, filename, IMPORT_MIME[ext], user.id, ext === 'pdf' ? 'pdf' : 'attachment');
 
     // Extract embedded data-URI images into MinIO.
     let html = result.html;
@@ -396,41 +393,12 @@ export class DocumentsService {
         contentText: toText(content),
         source: ext,
         pageSettings: result.page ? { ...DEFAULT_PAGE, ...result.page } : DEFAULT_PAGE,
-        sourceFileId: original.id,
-        attachments: [{ id: original.id, filename: original.filename, mime: original.mime, size: original.size }],
         authorId: user.id,
         updatedById: user.id,
         position: await this.nextPosition(space.id, parentId ?? null),
       }),
     );
     return { document: await this.get(user, d.id), warnings: result.warnings, pages: result.pages };
-  }
-
-  async addAttachment(user: AuthUser, id: string, file: Express.Multer.File | undefined) {
-    const d = await this.load(id);
-    await this.access.requireEdit(user, d.space);
-    if (!can(user, 'documents.edit') || !can(user, 'files.upload')) throw new ForbiddenException('No tienes permiso para adjuntar archivos');
-    if (!file) throw new BadRequestException('Falta el archivo');
-    const filename = Buffer.from(file.originalname, 'latin1').toString('utf8');
-    const ext = (filename.split('.').pop() ?? '').toLowerCase();
-    const mime = ATTACH_EXT_MIME[ext] ?? file.mimetype;
-    if (!ATTACH_MIMES.includes(mime)) throw new BadRequestException('Tipo de archivo no permitido');
-    const f = await this.files.save(file.buffer, filename, mime, user.id, mime === 'application/pdf' ? 'pdf' : 'attachment');
-    d.attachments = [...(d.attachments ?? []), { id: f.id, filename: f.filename, mime: f.mime, size: f.size }];
-    d.updatedById = user.id;
-    d.updatedBy = null;
-    await this.docs.save(d);
-    return this.get(user, d.id);
-  }
-
-  async removeAttachment(user: AuthUser, id: string, fileId: string) {
-    const d = await this.load(id);
-    await this.access.requireEdit(user, d.space);
-    if (!can(user, 'documents.edit')) throw new ForbiddenException('No tienes permiso para quitar adjuntos');
-    d.attachments = (d.attachments ?? []).filter((a: AttachmentInfo) => a.id !== fileId);
-    if (d.sourceFileId === fileId) d.sourceFileId = null;
-    await this.docs.save(d);
-    return this.get(user, d.id);
   }
 
   /** Document → PDF with the editor formatting (WeasyPrint in the Python service). */
@@ -475,14 +443,6 @@ export class DocumentsController {
   import(@CurrentUser() u: AuthUser, @UploadedFile() file: Express.Multer.File, @Body('spaceId') spaceId: string, @Body('parentId') parentId?: string) {
     if (!spaceId) throw new BadRequestException('spaceId es obligatorio');
     return this.svc.importFile(u, file, spaceId, parentId || undefined);
-  }
-  @Post(':id/attachments')
-  @UseInterceptors(FileInterceptor('file', { limits: { fileSize: 50 * 1024 * 1024 } }))
-  addAttachment(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @UploadedFile() file: Express.Multer.File) {
-    return this.svc.addAttachment(u, id, file);
-  }
-  @Delete(':id/attachments/:fileId') removeAttachment(@CurrentUser() u: AuthUser, @Param('id', ParseUUIDPipe) id: string, @Param('fileId', ParseUUIDPipe) fileId: string) {
-    return this.svc.removeAttachment(u, id, fileId);
   }
   @Post() create(@CurrentUser() u: AuthUser, @Body() dto: CreateDocDto) {
     return this.svc.create(u, dto);

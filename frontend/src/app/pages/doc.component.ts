@@ -1,12 +1,11 @@
 import { Component, HostListener, OnDestroy, computed, effect, inject, input, signal, untracked } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { DomSanitizer, SafeHtml, SafeResourceUrl } from '@angular/platform-browser';
+import { DomSanitizer, SafeHtml } from '@angular/platform-browser';
 import { Router, RouterLink } from '@angular/router';
 import { Api } from '../core/api.service';
-import { Attachment, Doc, DocVersion, PageSettings } from '../core/models';
+import { Doc, DocVersion, PageSettings } from '../core/models';
 import { SpacesStore } from '../core/spaces.store';
 import { Toasts } from '../core/toast.service';
-import { Auth } from '../core/auth.service';
 import { EditorComponent } from '../editor/editor.component';
 import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shared/ui';
 
@@ -22,13 +21,7 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
         </nav>
         <div class="right">
           <span class="status eyebrow" [class.err]="status() === 'error'">{{ statusText() }}</span>
-          @if (d.source === 'pdf' && d.sourceFileId) {
-            <div class="seg" role="tablist" aria-label="Vista del documento">
-              <button role="tab" [class.on]="view() === 'original'" (click)="setView('original')">Original</button>
-              <button role="tab" [class.on]="view() === 'edit'" (click)="setView('edit')">Editable</button>
-            </div>
-          }
-          @if (d.access.canEdit && view() === 'edit') {
+          @if (d.access.canEdit) {
             <button class="btn sm" [class.ghost]="!editing()" (click)="toggleEdit()"><x-icon [name]="editing() ? 'eye' : 'edit'" /> <span class="lbl">{{ editing() ? 'Ver' : 'Editar' }}</span></button>
           }
           <button class="btn ghost sm" (click)="openHistory()"><x-icon name="history" /> <span class="lbl">Historial</span></button>
@@ -45,7 +38,6 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
                   <button (click)="openPage()"><x-icon name="file2" /> Ajustes de página</button>
                   <button (click)="saveVersion()"><x-icon name="save" /> Guardar versión</button>
                 }
-                @if (d.sourceFileId) { <button (click)="openOriginal()"><x-icon name="pdf" /> Ver PDF original</button> }
                 @if (d.access.canDelete) { <button class="del" (click)="confirmDelete.set(true)"><x-icon name="trash" /> Eliminar</button> }
               </div>
             }
@@ -54,7 +46,7 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
       </div>
 
       @if (imported() && editing()) {
-        <div class="notice no-print"><x-icon name="pdf" /><span>Documento importado desde PDF. Revisa el formato antes de compartirlo.@if (d.sourceFileId) { <a (click)="openOriginal()">Ver PDF original</a> }</span><button class="btn subtle icon sm" (click)="imported.set(false)" aria-label="Cerrar"><x-icon name="close" /></button></div>
+        <div class="notice no-print"><x-icon name="pdf" /><span>Documento importado desde PDF. Revisa el formato antes de compartirlo.</span><button class="btn subtle icon sm" (click)="imported.set(false)" aria-label="Cerrar"><x-icon name="close" /></button></div>
       }
 
       <div class="head">
@@ -67,35 +59,7 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
         </div>
       </div>
 
-      @if (d.attachments.length || (d.access.canEdit && auth.can('files.upload'))) {
-        <div class="attach no-print">
-          <span class="eyebrow">Archivos</span>
-          @for (a of d.attachments; track a.id) {
-            <span class="file">
-              <button class="fname" (click)="download(a)" [title]="'Descargar ' + a.filename"><x-icon [name]="a.mime === 'application/pdf' ? 'pdf' : 'file'" /> {{ a.filename }} <small>{{ size(a.size) }}</small></button>
-              @if (d.access.canEdit) { <button class="x" (click)="removeFile(a)" aria-label="Quitar archivo"><x-icon name="close" /></button> }
-            </span>
-          }
-          @if (d.access.canEdit && auth.can('files.upload')) {
-            <button class="btn ghost sm" (click)="attachInput.click()"><x-icon name="plus" /> Adjuntar</button>
-            <input #attachInput type="file" hidden (change)="attach($event)" accept=".pdf,.docx,.xlsx,.pptx,.png,.jpg,.jpeg,.txt,.csv,.zip">
-          }
-        </div>
-      }
-
-      @if (view() === 'original') {
-        <div class="orig">
-          <div class="orig-bar no-print">
-            <span class="muted">PDF original, sin conversión.</span>
-            <button class="btn subtle sm" (click)="openOriginal()"><x-icon name="arrowUR" /> Abrir en pestaña nueva</button>
-          </div>
-          @if (pdfUrl()) { <iframe class="pdf-frame" [src]="pdfUrl()!" title="PDF original"></iframe> }
-          @else { <div class="empty"><span class="spinner"></span></div> }
-        </div>
-      }
-      <div [hidden]="view() === 'original'">
-        <app-editor [content]="d.content" [editable]="editing()" [settings]="settings()" (contentChange)="onContent($event)" />
-      </div>
+      <app-editor [content]="d.content" [editable]="editing()" [settings]="settings()" (contentChange)="onContent($event)" />
 
       @if (pageDlg()) {
         <x-modal (closed)="pageDlg.set(false)">
@@ -167,7 +131,6 @@ export class DocComponent implements OnDestroy {
   private toasts = inject(Toasts);
   private store = inject(SpacesStore);
   private sanitizer = inject(DomSanitizer);
-  auth = inject(Auth);
 
   id = input.required<string>();
   edit = input<string>();
@@ -187,9 +150,6 @@ export class DocComponent implements OnDestroy {
   preview = signal<DocVersion | null>(null);
   previewHtml = signal<SafeHtml>('');
   imported = signal(false);
-  view = signal<'original' | 'edit'>('edit');
-  pdfUrl = signal<SafeResourceUrl | null>(null);
-  private pdfRaw: string | null = null;
   settings = computed<PageSettings | null>(() => this.doc()?.pageSettings ?? null);
   draft: PageSettings = { size: 'A4', orientation: 'portrait', margin: 20 };
   rel = relTime;
@@ -223,45 +183,9 @@ export class DocComponent implements OnDestroy {
       this.status.set('idle');
       this.editing.set(!!this.edit() && d.access.canEdit);
       this.imported.set(!!this.importedQ());
-      this.freePdf();
-      const pdfFirst = d.source === 'pdf' && !!d.sourceFileId && !this.edit();
-      this.view.set(pdfFirst ? 'original' : 'edit');
-      if (pdfFirst) this.loadPdf(d.sourceFileId!);
     } catch (e: any) {
       this.error.set(e?.status === 403 ? 'No tienes acceso a este documento.' : 'Documento no encontrado.');
     }
-  }
-
-  setView(v: 'original' | 'edit') {
-    if (v === 'original') this.flush();
-    this.view.set(v);
-    if (v === 'original' && !this.pdfUrl() && this.doc()?.sourceFileId) this.loadPdf(this.doc()!.sourceFileId!);
-  }
-
-  private async loadPdf(fileId: string) {
-    try {
-      const blob = await this.api.fileBlob(fileId);
-      this.pdfRaw = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
-      this.pdfUrl.set(this.sanitizer.bypassSecurityTrustResourceUrl(this.pdfRaw));
-    } catch (e) { this.toasts.error(e, 'No se pudo cargar el PDF original'); }
-  }
-  private freePdf() { if (this.pdfRaw) URL.revokeObjectURL(this.pdfRaw); this.pdfRaw = null; this.pdfUrl.set(null); }
-
-  size(n: number) { return n > 1048576 ? `${(n / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(n / 1024))} KB`; }
-
-  async download(a: Attachment) {
-    try { this.download_(await this.api.fileBlob(a.id), a.filename); } catch (e) { this.toasts.error(e, 'No se pudo descargar el archivo'); }
-  }
-  async attach(ev: Event) {
-    const input = ev.target as HTMLInputElement;
-    const f = input.files?.[0];
-    input.value = '';
-    if (!f) return;
-    try { this.doc.set(await this.api.addAttachment(this.doc()!.id, f)); this.toasts.ok('Archivo adjuntado'); } catch (e) { this.toasts.error(e, 'No se pudo adjuntar'); }
-  }
-  async removeFile(a: Attachment) {
-    if (!confirm(`¿Quitar «${a.filename}» de este documento?`)) return;
-    try { this.doc.set(await this.api.removeAttachment(this.doc()!.id, a.id)); } catch (e) { this.toasts.error(e); }
   }
 
   toggleEdit() {
@@ -308,7 +232,7 @@ export class DocComponent implements OnDestroy {
 
   @HostListener('window:beforeunload', ['$event'])
   beforeUnload(e: BeforeUnloadEvent) { if (this.status() === 'dirty' || this.status() === 'saving') { this.flush(); e.preventDefault(); } }
-  ngOnDestroy() { this.flush(); this.freePdf(); }
+  ngOnDestroy() { this.flush(); }
 
   async exportPdf() {
     const d = this.doc()!;
@@ -320,13 +244,6 @@ export class DocComponent implements OnDestroy {
     } catch (e: any) {
       this.toasts.show(e?.error instanceof Blob ? 'No se pudo exportar el PDF' : e?.error?.message || 'No se pudo exportar el PDF', 'error');
     } finally { this.exporting.set(false); }
-  }
-
-  async openOriginal() {
-    try {
-      const blob = await this.api.fileBlob(this.doc()!.sourceFileId!);
-      window.open(URL.createObjectURL(blob), '_blank', 'noopener');
-    } catch (e) { this.toasts.error(e, 'No se pudo abrir el PDF original'); }
   }
 
   private download_(blob: Blob, name: string) {
