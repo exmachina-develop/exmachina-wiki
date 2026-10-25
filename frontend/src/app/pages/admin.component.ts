@@ -6,7 +6,7 @@ import { DirUser, PermissionDef, Role } from '../core/models';
 import { Toasts } from '../core/toast.service';
 import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shared/ui';
 
-interface UserForm { id?: string; name: string; email: string; password: string; roleId: string; jobTitle: string; active: boolean }
+interface UserForm { id?: string; username: string; name: string; email: string; password: string; roleId: string; jobTitle: string; active: boolean }
 interface RoleForm { id?: string; name: string; description: string; permissions: string[]; isSystem?: boolean }
 
 @Component({
@@ -31,7 +31,7 @@ interface RoleForm { id?: string; name: string; description: string; permissions
             <tbody>
               @for (u of users(); track u.id) {
                 <tr>
-                  <td><div class="who"><x-avatar [name]="u.name" [color]="u.color" /><span><b>{{ u.name }}</b><small>{{ u.email }}</small></span></div></td>
+                  <td><div class="who"><x-avatar [name]="u.name" [color]="u.color" /><span><b>{{ u.name }}</b><small>&#64;{{ u.username }} · {{ u.email }}</small></span></div></td>
                   <td><span class="chip violet">{{ u.role?.name }}</span></td>
                   <td>{{ u.active ? 'Activo' : 'Desactivado' }}</td>
                   <td class="muted">{{ u.lastLoginAt ? rel(u.lastLoginAt) : 'Nunca' }}</td>
@@ -59,6 +59,7 @@ interface RoleForm { id?: string; name: string; description: string; permissions
       <x-modal (closed)="uf.set(null)">
         <h2>{{ f.id ? 'Editar usuario' : 'Nuevo usuario' }}</h2>
         <div class="field"><label for="un">Nombre completo</label><input id="un" class="input" [(ngModel)]="f.name" maxlength="120"></div>
+        <div class="field"><label for="uu">Usuario (para ingresar)</label><input id="uu" class="input" [(ngModel)]="f.username" maxlength="32" autocapitalize="none" spellcheck="false" placeholder="nombre.apellido"></div>
         <div class="field"><label for="ue">Correo</label><input id="ue" class="input" type="email" [(ngModel)]="f.email"></div>
         <div class="field"><label for="uj">Cargo</label><input id="uj" class="input" [(ngModel)]="f.jobTitle" maxlength="120"></div>
         <div class="field"><label for="ur">Rol</label><select id="ur" class="select" [(ngModel)]="f.roleId">@for (r of roles(); track r.id) { <option [value]="r.id">{{ r.name }}</option> }</select></div>
@@ -67,7 +68,7 @@ interface RoleForm { id?: string; name: string; description: string; permissions
         <div class="modal-actions">
           @if (f.id && f.id !== auth.user()?.id) { <button class="btn danger" style="margin-right:auto" (click)="deleteUser(f)">Eliminar</button> }
           <button class="btn ghost" (click)="uf.set(null)">Cancelar</button>
-          <button class="btn" (click)="saveUser()" [disabled]="busy() || f.name.trim().length < 2 || !f.email || !f.roleId || (!f.id && f.password.length < 8)">Guardar</button>
+          <button class="btn" (click)="saveUser()" [disabled]="busy() || f.name.trim().length < 2 || f.username.trim().length < 3 || !f.email || !f.roleId || (!f.id && f.password.length < 8)">Guardar</button>
         </div>
       </x-modal>
     }
@@ -132,14 +133,14 @@ export class AdminComponent implements OnInit {
     } catch (e) { this.toasts.error(e); }
   }
 
-  newUser() { this.uf.set({ name: '', email: '', password: '', roleId: this.roles().find((r) => r.name === 'Editor')?.id ?? this.roles()[0]?.id ?? '', jobTitle: '', active: true }); }
-  editUser(u: DirUser) { this.uf.set({ id: u.id, name: u.name, email: u.email, password: '', roleId: u.role?.id ?? '', jobTitle: u.jobTitle, active: u.active }); }
+  newUser() { this.uf.set({ username: '', name: '', email: '', password: '', roleId: this.roles().find((r) => r.name === 'Editor')?.id ?? this.roles()[0]?.id ?? '', jobTitle: '', active: true }); }
+  editUser(u: DirUser) { this.uf.set({ id: u.id, username: u.username ?? '', name: u.name, email: u.email, password: '', roleId: u.role?.id ?? '', jobTitle: u.jobTitle, active: u.active }); }
   async saveUser() {
     const f = this.uf()!;
     this.busy.set(true);
     try {
-      if (f.id) await this.api.updateUser(f.id, { name: f.name, email: f.email, roleId: f.roleId, jobTitle: f.jobTitle, active: f.active, ...(f.password ? { password: f.password } : {}) });
-      else await this.api.createUser({ name: f.name, email: f.email, password: f.password, roleId: f.roleId, jobTitle: f.jobTitle });
+      if (f.id) await this.api.updateUser(f.id, { username: f.username, name: f.name, email: f.email, roleId: f.roleId, jobTitle: f.jobTitle, active: f.active, ...(f.password ? { password: f.password } : {}) });
+      else await this.api.createUser({ username: f.username, name: f.name, email: f.email, password: f.password, roleId: f.roleId, jobTitle: f.jobTitle });
       this.uf.set(null); this.toasts.ok('Usuario guardado'); await this.reload();
     } catch (e) { this.toasts.error(e); } finally { this.busy.set(false); }
   }

@@ -19,8 +19,8 @@ export class Auth {
   can = (p: string) => this.permissions().has(p);
   isAdmin = computed(() => this.can('users.manage') || this.can('roles.manage'));
 
-  async login(email: string, password: string) {
-    const r = await this.api.login(email, password);
+  async login(username: string, password: string) {
+    const r = await this.api.login(username, password);
     this.setToken(r.token);
     this.user.set(r.user);
   }

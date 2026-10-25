@@ -9,7 +9,7 @@ export class Api {
   private b = '/api';
 
   // auth
-  login = (email: string, password: string) => firstValueFrom(this.http.post<{ token: string; user: Profile }>(`${this.b}/auth/login`, { email, password }));
+  login = (username: string, password: string) => firstValueFrom(this.http.post<{ token: string; user: Profile }>(`${this.b}/auth/login`, { username, password }));
   me = () => firstValueFrom(this.http.get<Profile>(`${this.b}/auth/me`));
   updateProfile = (d: { name?: string; jobTitle?: string }) => firstValueFrom(this.http.patch<Profile>(`${this.b}/auth/me`, d));
   changePassword = (current: string, next: string) => firstValueFrom(this.http.post(`${this.b}/auth/change-password`, { current, next }));

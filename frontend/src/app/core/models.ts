@@ -1,12 +1,12 @@
 export interface UserRef { id: string; name: string; color: string }
 
 export interface Profile {
-  id: string; name: string; email: string; jobTitle: string; color: string;
+  id: string; username: string; name: string; email: string; jobTitle: string; color: string;
   role: { id: string; name: string }; permissions: string[];
 }
 
 export interface DirUser {
-  id: string; name: string; email: string; jobTitle: string; color: string; active: boolean;
+  id: string; username: string; name: string; email: string; jobTitle: string; color: string; active: boolean;
   lastLoginAt: string | null; role: { id: string; name: string } | null;
 }
 

@@ -33,6 +33,7 @@ export class Role {
 export class User {
   @PrimaryGeneratedColumn('uuid') id: string;
   @Column() name: string;
+  @Index({ unique: true }) @Column({ type: 'varchar', nullable: true }) username: string | null;
   @Index({ unique: true }) @Column() email: string;
   @Column({ select: false }) passwordHash: string;
   @Column({ nullable: true }) roleId: string;

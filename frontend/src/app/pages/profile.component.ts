@@ -18,6 +18,7 @@ import { AvatarComponent } from '../shared/ui';
         <span class="eyebrow">Datos</span>
         <div class="field"><label for="pn">Nombre</label><input id="pn" class="input" [(ngModel)]="name" maxlength="120"></div>
         <div class="field"><label for="pj">Cargo</label><input id="pj" class="input" [(ngModel)]="jobTitle" maxlength="120" placeholder="Ej. CTO"></div>
+        <div class="field"><label>Usuario</label><input class="input" [value]="auth.user()?.username" disabled></div>
         <div class="field"><label>Correo</label><input class="input" [value]="auth.user()?.email" disabled></div>
         <div class="field"><label>Rol</label><input class="input" [value]="auth.user()?.role?.name" disabled></div>
         <button class="btn" (click)="saveProfile()" [disabled]="name.trim().length < 2">Guardar cambios</button>

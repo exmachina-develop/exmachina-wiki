@@ -14,7 +14,7 @@ import {
   Post,
 } from '@nestjs/common';
 import { InjectRepository, TypeOrmModule } from '@nestjs/typeorm';
-import { ArrayUnique, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
+import { ArrayUnique, IsArray, IsBoolean, IsEmail, IsIn, IsOptional, Matches, IsString, IsUUID, MaxLength, MinLength } from 'class-validator';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
 import { Role, User } from '../entities';
@@ -22,14 +22,18 @@ import { ALL_PERMISSIONS, AuthUser, CurrentUser, PERMISSION_CATALOG, RequirePerm
 
 const COLORS = ['#7047FF', '#416BFF', '#2BB3A3', '#E0A84A', '#E0587A', '#8B8FA3'];
 
+const USERNAME_RE = /^[a-z0-9][a-z0-9._-]{2,31}$/;
+
 class CreateUserDto {
   @IsString() @MinLength(2) @MaxLength(120) name: string;
+  @IsString() @Matches(USERNAME_RE, { message: 'El usuario debe tener 3-32 caracteres: minúsculas, números, punto, guion' }) username: string;
   @IsEmail() email: string;
   @IsString() @MinLength(8) @MaxLength(100) password: string;
   @IsUUID() roleId: string;
   @IsOptional() @IsString() @MaxLength(120) jobTitle?: string;
 }
 class UpdateUserDto {
+  @IsOptional() @IsString() @Matches(USERNAME_RE, { message: 'Usuario inválido' }) username?: string;
   @IsOptional() @IsString() @MinLength(2) @MaxLength(120) name?: string;
   @IsOptional() @IsEmail() email?: string;
   @IsOptional() @IsString() @MinLength(8) @MaxLength(100) password?: string;
@@ -45,6 +49,7 @@ class RoleDto {
 
 const publicUser = (u: User) => ({
   id: u.id,
+  username: u.username,
   name: u.name,
   email: u.email,
   jobTitle: u.jobTitle,
@@ -65,11 +70,14 @@ export class IamService {
   async createUser(dto: CreateUserDto) {
     const email = dto.email.trim().toLowerCase();
     if (await this.users.findOne({ where: { email } })) throw new ConflictException('Ya existe un usuario con ese correo');
+    const username = dto.username.trim().toLowerCase();
+    if (await this.users.findOne({ where: { username } })) throw new ConflictException('Ese nombre de usuario ya existe');
     if (!(await this.roles.findOne({ where: { id: dto.roleId } }))) throw new BadRequestException('Rol inválido');
     const count = await this.users.count();
     const u = await this.users.save(
       this.users.create({
         name: dto.name.trim(),
+        username,
         email,
         roleId: dto.roleId,
         jobTitle: dto.jobTitle ?? '',
@@ -90,6 +98,12 @@ export class IamService {
       const dup = await this.users.findOne({ where: { email } });
       if (dup && dup.id !== id) throw new ConflictException('Ya existe un usuario con ese correo');
       u.email = email;
+    }
+    if (dto.username) {
+      const username = dto.username.trim().toLowerCase();
+      const dup = await this.users.findOne({ where: { username } });
+      if (dup && dup.id !== id) throw new ConflictException('Ese nombre de usuario ya existe');
+      u.username = username;
     }
     if (dto.name) u.name = dto.name.trim();
     if (dto.jobTitle !== undefined) u.jobTitle = dto.jobTitle;

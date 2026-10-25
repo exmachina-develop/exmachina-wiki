@@ -7,10 +7,10 @@ import { Department, DepartmentMember, DocumentEntity, Role, Space, SpaceMember,
 import { ALL_PERMISSIONS } from '../common/permissions';
 
 const SEED_USERS = [
-  { env: 'SAMUEL', name: 'Samuel Rojas', email: 'samuel.rojas@exmachina.systems', color: '#7047FF' },
-  { env: 'ALBERT', name: 'Albert Fonse', email: 'albert.fonse@exmachina.systems', color: '#416BFF' },
-  { env: 'GABRIEL', name: 'Gabriel Perez', email: 'gabriel.perez@exmachina.systems', color: '#2BB3A3' },
-  { env: 'EMANUEL', name: 'Emanuel Jimenez', email: 'emanuel.jimenez@exmachina.systems', color: '#E0A84A' },
+  { env: 'SAMUEL', username: 'samuel.rojas', name: 'Samuel Rojas', email: 'samuel.rojas@exmachina.systems', color: '#7047FF' },
+  { env: 'ALBERT', username: 'albert.fonseca', name: 'Albert Fonseca', email: 'albert.fonse@exmachina.systems', color: '#416BFF' },
+  { env: 'GABRIEL', username: 'gabriel.perez', name: 'Gabriel Pérez', email: 'gabriel.perez@exmachina.systems', color: '#2BB3A3' },
+  { env: 'EMANUEL', username: 'emanuel.jimenez', name: 'Emanuel Jiménez', email: 'emanuel.jimenez@exmachina.systems', color: '#E0A84A' },
 ];
 
 const WELCOME = `
@@ -62,13 +62,18 @@ export class SeedService implements OnApplicationBootstrap {
     }
     const admin = await this.roles.findOneOrFail({ where: { name: 'Administrador' } });
 
+    // Accounts created before usernames existed: derive one from the e-mail local part.
+    for (const u of await this.users.find()) {
+      if (!u.username) await this.users.update(u.id, { username: u.email.split('@')[0].toLowerCase() });
+    }
+
     const created: User[] = [];
     for (const s of SEED_USERS) {
       if (await this.users.findOne({ where: { email: s.email } })) continue;
       const password = process.env[`SEED_PASSWORD_${s.env}`] || randomBytes(9).toString('base64url');
       if (!process.env[`SEED_PASSWORD_${s.env}`]) this.log.warn(`Credenciales generadas → ${s.email} / ${password}`);
       created.push(
-        await this.users.save(this.users.create({ name: s.name, email: s.email, color: s.color, roleId: admin.id, passwordHash: await bcrypt.hash(password, 11) })),
+        await this.users.save(this.users.create({ name: s.name, username: s.username, email: s.email, color: s.color, roleId: admin.id, passwordHash: await bcrypt.hash(password, 11) })),
       );
     }
 

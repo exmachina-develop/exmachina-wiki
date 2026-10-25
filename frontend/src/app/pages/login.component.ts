@@ -20,8 +20,8 @@ import { Auth } from '../core/auth.service';
       <form class="panel" (ngSubmit)="submit()" autocomplete="on">
         <span class="eyebrow">Acceso</span>
         <div class="field">
-          <label for="email">Correo</label>
-          <input id="email" name="email" class="input" type="email" autocomplete="username" required [(ngModel)]="email" placeholder="nombre@exmachina.systems">
+          <label for="email">Usuario</label>
+          <input id="email" name="username" class="input" type="text" autocomplete="username" autocapitalize="none" spellcheck="false" required [(ngModel)]="email" placeholder="nombre.apellido">
         </div>
         <div class="field">
           <label for="pw">Contraseña</label>

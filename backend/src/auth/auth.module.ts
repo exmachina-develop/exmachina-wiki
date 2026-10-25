@@ -15,7 +15,7 @@ import { User } from '../entities';
 import { AuthUser, CurrentUser, Public } from '../common/permissions';
 
 class LoginDto {
-  @IsEmail() email: string;
+  @IsString() @MaxLength(120) username: string;
   @IsString() password: string;
 }
 class ChangePasswordDto {
@@ -58,6 +58,7 @@ export class AuthService {
     return {
       id: u.id,
       name: u.name,
+      username: u.username,
       email: u.email,
       jobTitle: u.jobTitle,
       color: u.color,
@@ -66,12 +67,13 @@ export class AuthService {
     };
   }
 
-  async login(email: string, password: string) {
+  async login(username: string, password: string) {
+    const id = username.trim().toLowerCase();
     const user = await this.users
       .createQueryBuilder('u')
       .leftJoinAndSelect('u.role', 'role')
       .addSelect('u.passwordHash')
-      .where('u.email = :email', { email: email.trim().toLowerCase() })
+      .where('LOWER(u.username) = :id OR u.email = :id', { id })
       .getOne();
     const ok = user && user.active && (await bcrypt.compare(password, user.passwordHash));
     if (!user || !ok) throw new UnauthorizedException('Credenciales incorrectas');
@@ -104,7 +106,7 @@ export class AuthController {
   @Throttle({ default: { limit: 8, ttl: 60_000 } })
   @Post('login')
   login(@Body() dto: LoginDto) {
-    return this.auth.login(dto.email, dto.password);
+    return this.auth.login(dto.username, dto.password);
   }
 
   @Get('me')
