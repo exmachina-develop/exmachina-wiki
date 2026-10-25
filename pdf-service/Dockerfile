@@ -8,6 +8,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
       fonts-inter fonts-roboto fonts-open-sans fonts-lora fonts-liberation2 fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
 
+# Lora is not packaged in Debian: fetch it from the Google Fonts repo (non-fatal if offline).
+RUN mkdir -p /usr/local/share/fonts/lora && cd /usr/local/share/fonts/lora     && (curl -fsSL -o Lora.ttf "https://github.com/google/fonts/raw/main/ofl/lora/Lora%5Bwght%5D.ttf"     && curl -fsSL -o Lora-Italic.ttf "https://github.com/google/fonts/raw/main/ofl/lora/Lora-Italic%5Bwght%5D.ttf"     || echo "WARN: Lora not downloaded; serif falls back to DejaVu") 
+
 # Georgia/Verdana have no free metric twin: map them to the closest DejaVu faces.
 COPY fonts.conf /etc/fonts/conf.d/60-wiki-aliases.conf
 RUN fc-cache -f
