@@ -188,8 +188,18 @@ def _runs_for_line(line: dict, res_map: dict, faces_by_res: dict) -> list[dict]:
             r["fam"], r["css"] = "Courier", "'Courier New', monospace"
             runs.append(r)
             continue
-        real = [(c, res_map.get(_key(c))) for c in chars] if res_map else []
-        real = [(c, h) for c, h in real if h]
+        real = []
+        if res_map:
+            prev = None
+            for c in chars:
+                h = res_map.get(_key(c))
+                if h is None:
+                    if c["c"] == " ":
+                        continue  # synthetic space inferred by PyMuPDF from a wide gap
+                    h = prev  # second half of a ligature (fi, fl...) expanded by PyMuPDF
+                if h is not None:
+                    real.append((c, h))
+                    prev = h
         if not real:  # could not tie to font objects: neutral run, face inherited from neighbours below
             runs.append(_make_run(text, sp, sp["origin"], color, italic))
             continue
