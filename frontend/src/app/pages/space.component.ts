@@ -8,13 +8,14 @@ import { SpacesStore } from '../core/spaces.store';
 import { Toasts } from '../core/toast.service';
 import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shared/ui';
 import { SpaceFormComponent } from '../shared/space-form.component';
+import { ConfirmDeleteComponent } from '../shared/confirm-delete.component';
 
 interface Node { doc: DocBrief; children: Node[]; depth: number }
 
 @Component({
   selector: 'app-space',
   standalone: true,
-  imports: [FormsModule, RouterLink, IconComponent, AvatarComponent, ModalComponent, SpaceFormComponent],
+  imports: [FormsModule, RouterLink, IconComponent, AvatarComponent, ModalComponent, SpaceFormComponent, ConfirmDeleteComponent],
   template: `
     @if (space(); as s) {
       <div class="page">
@@ -35,6 +36,7 @@ interface Node { doc: DocBrief; children: Node[]; depth: number }
             @if (s.access?.canManage) {
               <button class="btn ghost icon" (click)="members.set(true)" title="Miembros" aria-label="Miembros"><x-icon name="users" /></button>
               <button class="btn ghost icon" (click)="settings.set(true)" title="Ajustes" aria-label="Ajustes"><x-icon name="settings" /></button>
+              <button class="btn danger" (click)="deleting.set(true)" title="Eliminar espacio"><x-icon name="trash" /> Eliminar</button>
             }
           </div>
         </header>
@@ -63,6 +65,12 @@ interface Node { doc: DocBrief; children: Node[]; depth: number }
           </div>
         }
       </div>
+
+      @if (deleting()) {
+        <app-confirm-delete title="Eliminar el espacio «{{ s.name }}»" action="Eliminar espacio" [busy]="busyDelete()"
+          [message]="'Se eliminarán de forma permanente el espacio y sus ' + docs().length + ' documentos, con su historial. Esta acción no se puede deshacer.'"
+          (confirmed)="removeSpace()" (cancelled)="deleting.set(false)" />
+      }
 
       @if (settings()) { <app-space-form [space]="s" (closed)="settings.set(false)" (saved)="onSaved($event)" /> }
 
@@ -117,6 +125,8 @@ export class SpaceComponent {
   busy = signal(false);
   busyText = signal('');
   settings = signal(false);
+  deleting = signal(false);
+  busyDelete = signal(false);
   members = signal(false);
   draft = signal<SpaceMemberView[]>([]);
   users = signal<DirUser[]>([]);
@@ -182,6 +192,17 @@ export class SpaceComponent {
       this.toasts.ok(`PDF importado (${r.pages} páginas)`);
       this.router.navigate(['/doc', r.document.id], { queryParams: { edit: 1, imported: 1 } });
     } catch (e) { this.toasts.error(e, 'No se pudo importar el PDF'); } finally { this.busy.set(false); }
+  }
+
+  async removeSpace() {
+    const s = this.space()!;
+    this.busyDelete.set(true);
+    try {
+      await this.api.deleteSpace(s.id);
+      this.toasts.ok(`Espacio «${s.name}» eliminado`);
+      await this.store.reload();
+      this.router.navigate(['/spaces']);
+    } catch (e) { this.toasts.error(e, 'No se pudo eliminar el espacio'); } finally { this.busyDelete.set(false); this.deleting.set(false); }
   }
 
   onSaved(s: Space) { this.settings.set(false); this.store.reload(); this.space.set({ ...this.space()!, ...s }); }

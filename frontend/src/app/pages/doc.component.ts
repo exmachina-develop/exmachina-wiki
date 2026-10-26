@@ -9,11 +9,12 @@ import { Toasts } from '../core/toast.service';
 import { EditorComponent } from '../editor/editor.component';
 import { PagesEditorComponent } from '../editor/pages-editor.component';
 import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shared/ui';
+import { ConfirmDeleteComponent } from '../shared/confirm-delete.component';
 
 @Component({
   selector: 'app-doc',
   standalone: true,
-  imports: [FormsModule, RouterLink, EditorComponent, PagesEditorComponent, IconComponent, AvatarComponent, ModalComponent],
+  imports: [FormsModule, RouterLink, EditorComponent, PagesEditorComponent, ConfirmDeleteComponent, IconComponent, AvatarComponent, ModalComponent],
   template: `
     @if (doc(); as d) {
       <div class="bar no-print">
@@ -78,11 +79,9 @@ import { AvatarComponent, IconComponent, ModalComponent, relTime } from '../shar
       }
 
       @if (confirmDelete()) {
-        <x-modal (closed)="confirmDelete.set(false)">
-          <h2>¿Eliminar documento?</h2>
-          <p class="muted">«{{ d.title }}» se eliminará junto con su historial. Las subpáginas se conservarán. Esta acción no se puede deshacer.</p>
-          <div class="modal-actions"><button class="btn ghost" (click)="confirmDelete.set(false)">Cancelar</button><button class="btn danger" (click)="remove()">Eliminar</button></div>
-        </x-modal>
+        <app-confirm-delete title="Eliminar documento" action="Eliminar documento"
+          [message]="'«' + d.title + '» se eliminará junto con su historial. Las subpáginas se conservarán. Esta acción no se puede deshacer.'"
+          (confirmed)="remove()" (cancelled)="confirmDelete.set(false)" />
       }
 
       @if (history()) {

@@ -8,7 +8,7 @@ const PALETTE = ['#14141a', '#626262', '#7047ff', '#416bff', '#0f9d7a', '#d98a00
 const BG_SWATCHES = ['#ffffff', '#f4f4f7', '#050509', '#14141a', '#ece7ff', '#e4f5ee', '#fdf0d8', '#7047ff'];
 const RADII = [0, 4, 8, 12, 20, 40];
 
-type Drag = { mode: 'move' | 'resize'; el: HTMLElement; x: number; y: number; left: number; top: number; w: number; h: number };
+type Drag = { mode: 'move' | 'resize' | 'resizew'; el: HTMLElement; x: number; y: number; left: number; top: number; w: number; h: number };
 
 /**
  * Page-faithful editor for imported PDFs. Every page is a fixed-size sheet made of layers:
@@ -24,9 +24,29 @@ type Drag = { mode: 'move' | 'resize'; el: HTMLElement; x: number; y: number; le
     @if (editable) {
       <div class="toolbar no-print" role="toolbar" aria-label="Formato">
         <div class="grp">
-          <button class="tb" (mousedown)="$event.preventDefault()" (click)="cmd('bold')" title="Negrita" aria-label="Negrita"><x-icon name="bold" /></button>
-          <button class="tb" (mousedown)="$event.preventDefault()" (click)="cmd('italic')" title="Cursiva" aria-label="Cursiva"><x-icon name="italic" /></button>
-          <button class="tb" (mousedown)="$event.preventDefault()" (click)="cmd('underline')" title="Subrayado" aria-label="Subrayado"><x-icon name="underline" /></button>
+          <select class="sel w-font" [value]="fmt().family" (mousedown)="saveSel()" (change)="setFamily($any($event.target).value)" aria-label="Fuente" title="Fuente">
+            @for (f of fonts; track f) { <option [value]="f" [selected]="f === fmt().family" [style.font-family]="f">{{ f }}</option> }
+            @if (!fonts.includes(fmt().family) && fmt().family) { <option [value]="fmt().family" selected>{{ fmt().family }}</option> }
+          </select>
+          <select class="sel w-weight" (mousedown)="saveSel()" (change)="setWeight($any($event.target).value)" aria-label="Peso de la letra" title="Peso">
+            @for (w of weights; track w[0]) { <option [value]="w[0]" [selected]="w[0] === fmt().weight">{{ w[1] }}</option> }
+          </select>
+          <div class="size">
+            <button class="tb sm" (mousedown)="$event.preventDefault()" (click)="stepSize(-1)" aria-label="Reducir tamaño"><x-icon name="minus" /></button>
+            <input class="sz" type="number" min="3" max="200" step="0.5" [value]="fmt().size" (mousedown)="saveSel()" (change)="setSize($any($event.target).value)" (keydown.enter)="setSize($any($event.target).value)" aria-label="Tamaño de letra (pt)" title="Tamaño (pt)">
+            <button class="tb sm" (mousedown)="$event.preventDefault()" (click)="stepSize(1)" aria-label="Aumentar tamaño"><x-icon name="plus" /></button>
+          </div>
+        </div>
+        <div class="grp">
+          <button class="tb" [class.on]="fmt().align === 'left'" (mousedown)="$event.preventDefault()" (click)="align('left')" title="Alinear a la izquierda" aria-label="Alinear a la izquierda"><x-icon name="alignLeft" /></button>
+          <button class="tb" [class.on]="fmt().align === 'center'" (mousedown)="$event.preventDefault()" (click)="align('center')" title="Centrar" aria-label="Centrar"><x-icon name="alignCenter" /></button>
+          <button class="tb" [class.on]="fmt().align === 'right'" (mousedown)="$event.preventDefault()" (click)="align('right')" title="Alinear a la derecha" aria-label="Alinear a la derecha"><x-icon name="alignRight" /></button>
+          <button class="tb" [class.on]="fmt().align === 'justify'" (mousedown)="$event.preventDefault()" (click)="align('justify')" title="Justificar" aria-label="Justificar"><x-icon name="alignJustify" /></button>
+        </div>
+        <div class="grp">
+          <button class="tb" [class.on]="fmt().bold" (mousedown)="$event.preventDefault()" (click)="cmd('bold')" title="Negrita" aria-label="Negrita"><x-icon name="bold" /></button>
+          <button class="tb" [class.on]="fmt().italic" (mousedown)="$event.preventDefault()" (click)="cmd('italic')" title="Cursiva" aria-label="Cursiva"><x-icon name="italic" /></button>
+          <button class="tb" [class.on]="fmt().underline" (mousedown)="$event.preventDefault()" (click)="cmd('underline')" title="Subrayado" aria-label="Subrayado"><x-icon name="underline" /></button>
           <div class="pop-wrap">
             <button class="tb" (mousedown)="$event.preventDefault()" (click)="togglePop('text')" title="Color del texto" aria-label="Color del texto"><span class="swatch-a">A</span></button>
             @if (pop() === 'text') {
@@ -34,8 +54,6 @@ type Drag = { mode: 'move' | 'resize'; el: HTMLElement; x: number; y: number; le
                 <input type="color" class="cp" (input)="textColor($any($event.target).value)" aria-label="Color personalizado"></div>
             }
           </div>
-          <button class="tb txt" (mousedown)="$event.preventDefault()" (click)="resize(-1)" title="Reducir texto" aria-label="Reducir texto">A−</button>
-          <button class="tb txt" (mousedown)="$event.preventDefault()" (click)="resize(1)" title="Aumentar texto" aria-label="Aumentar texto">A+</button>
         </div>
 
         <div class="grp">
@@ -70,7 +88,7 @@ type Drag = { mode: 'move' | 'resize'; el: HTMLElement; x: number; y: number; le
           }
           <button class="tb danger" (mousedown)="$event.preventDefault()" (click)="removeSel()" [disabled]="!selKind()" title="Eliminar lo seleccionado (Supr)" aria-label="Eliminar lo seleccionado"><x-icon name="trash" /></button>
         </div>
-        <span class="hint">Clic en un texto para editarlo · arrastra ✥ para moverlo · recuadros e imágenes: arrastra y usa la esquina ◢</span>
+        <span class="hint">Selecciona parte del texto para formatearla, o solo haz clic para formatear toda la caja · ✥ mueve · borde derecho ensancha · recuadros e imágenes: arrastra y usa la esquina ◢</span>
       </div>
     }
     <div class="stage" #stage>
@@ -90,6 +108,9 @@ type Drag = { mode: 'move' | 'resize'; el: HTMLElement; x: number; y: number; le
     .sw { display: flex; flex-wrap: wrap; gap: 6px; } .dot { width: 24px; height: 24px; border-radius: 50%; border: 1px solid var(--line-strong); }
     .cp { width: 100%; height: 30px; background: transparent; border: 1px solid var(--line); cursor: pointer; padding: 0; } .cp.sm { width: 38px; height: 28px; }
     .sel { height: 30px; background: transparent; border: 1px solid var(--line); border-radius: 2px; font-size: 13px; padding: 0 6px; color: var(--white); margin: 0 4px; option { background: var(--surface-2); } }
+    .w-font { width: 138px; } .w-weight { width: 104px; } .size { display: flex; align-items: center; }
+    .tb.sm { width: 24px; height: 30px; } .tb.sm x-icon { width: 13px; height: 13px; }
+    .sz { width: 54px; height: 30px; text-align: center; background: transparent; border: 1px solid var(--line); border-radius: 2px; font-size: 13px; color: var(--white); padding: 0 2px; -moz-appearance: textfield; &:focus { outline: none; border-color: var(--violet); } &::-webkit-inner-spin-button { display: none; } }
     .hint { font-size: 12px; color: var(--gray-light); margin-left: auto; }
     .stage { padding: 28px 12px 120px; overflow-x: auto; background: var(--stage); }
     @media (max-width: 900px) { .toolbar { flex-wrap: nowrap; overflow-x: auto; } .grp { flex: none; } .hint { display: none; } .stage { padding: 10px 0 100px; } .pop { position: fixed; left: 12px; right: 12px; top: auto; bottom: 12px; width: auto !important; } }
@@ -112,6 +133,11 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
   zoom = signal(1);
   selKind = signal<'' | 'tb' | 'shp' | 'img'>('');
   allPages = signal(false);
+  fonts = ['Lexend', 'Unbounded', 'Urbanist', 'Inter', 'Roboto', 'Open Sans', 'Lora', 'Arial', 'Times New Roman', 'Georgia', 'Courier New'];
+  weights: [string, string][] = [['300', 'Ligera'], ['400', 'Normal'], ['500', 'Media'], ['600', 'Seminegrita'], ['700', 'Negrita'], ['800', 'Extranegrita']];
+  /** formatting of the current selection / box, shown in the toolbar */
+  fmt = signal({ family: '', weight: '400', size: '' as string | number, align: 'left', bold: false, italic: false, underline: false });
+  private savedRange: Range | null = null;
   private tick = signal(0);
   private sel: HTMLElement | null = null;
   private activePage: HTMLElement | null = null;
@@ -127,6 +153,7 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
     el.addEventListener('keydown', this.onKey);
     el.addEventListener('paste', this.onPaste);
     el.addEventListener('pointerdown', this.onPointerDown);
+    document.addEventListener('selectionchange', this.onSelectionChange);
     window.addEventListener('pointermove', this.onPointerMove);
     window.addEventListener('pointerup', this.onPointerUp);
     this.ro = new ResizeObserver(() => this.zone.run(() => this.fit()));
@@ -141,6 +168,7 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
 
   ngOnDestroy() {
     this.ro?.disconnect();
+    document.removeEventListener('selectionchange', this.onSelectionChange);
     window.removeEventListener('pointermove', this.onPointerMove);
     window.removeEventListener('pointerup', this.onPointerUp);
   }
@@ -284,9 +312,13 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
     const tb = t.closest('.tb') as HTMLElement | null;
     if (tb) {
       // drag by the ✥ handle (the ::before area left of the box)
-      if (e.offsetX < 0 && tb.classList.contains('sel')) {
+      if (tb.classList.contains('sel') && e.offsetX < 0) {
         e.preventDefault();
         this.drag = { mode: 'move', el: tb, x: e.clientX, y: e.clientY, left: parseFloat(tb.style.left) || 0, top: parseFloat(tb.style.top) || 0, w: 0, h: 0 };
+      } else if (tb.classList.contains('sel') && e.offsetX > tb.clientWidth) {
+        e.preventDefault();
+        const k = PT_PER_PX / this.zoom();
+        this.drag = { mode: 'resizew', el: tb, x: e.clientX, y: e.clientY, left: 0, top: 0, w: parseFloat(tb.style.width) || tb.getBoundingClientRect().width * k, h: 0 };
       }
       return;
     }
@@ -298,7 +330,9 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
     if (!d) return;
     const k = PT_PER_PX / this.zoom();
     const dx = (e.clientX - d.x) * k, dy = (e.clientY - d.y) * k;
-    if (d.mode === 'move') {
+    if (d.mode === 'resizew') {
+      d.el.style.width = `${Math.max(12, d.w + dx).toFixed(2)}pt`;
+    } else if (d.mode === 'move') {
       d.el.style.left = `${(d.left + dx).toFixed(2)}pt`;
       d.el.style.top = `${(d.top + dy).toFixed(2)}pt`;
     } else {
@@ -492,5 +526,113 @@ export class PagesEditorComponent implements AfterViewInit, OnChanges, OnDestroy
     const m = css.match(/\d+(\.\d+)?/g);
     if (!m || m.length < 3) return '#ffffff';
     return '#' + m.slice(0, 3).map((n) => Math.round(+n).toString(16).padStart(2, '0')).join('');
+  }
+
+  // ---- font / weight / size / alignment (read from, and applied to, the selection or the whole box) ----
+  private selectedTb(): HTMLElement | null {
+    if (this.sel?.classList.contains('tb')) return this.sel;
+    const n = document.getSelection()?.anchorNode;
+    const el = (n instanceof HTMLElement ? n : n?.parentElement) ?? null;
+    const tb = el?.closest('.tb') as HTMLElement | null;
+    return tb && this.host.nativeElement.contains(tb) ? tb : null;
+  }
+
+  private onSelectionChange = () => {
+    if (!this.editable) return;
+    const s = document.getSelection();
+    const n = s?.anchorNode;
+    const el = (n instanceof HTMLElement ? n : n?.parentElement) ?? null;
+    const tb = el?.closest('.tb') as HTMLElement | null;
+    if (tb && this.host.nativeElement.contains(tb)) {
+      if (s && s.rangeCount) this.savedRange = s.getRangeAt(0).cloneRange();
+      this.readFormat(el!, tb);
+    }
+  };
+
+  private readFormat(el: HTMLElement, tb: HTMLElement) {
+    const cs = getComputedStyle(el);
+    const fam = cs.fontFamily.split(',')[0].replace(/["']/g, '').trim();
+    const pt = parseFloat(cs.fontSize) * PT_PER_PX;
+    let align = getComputedStyle(tb).textAlign;
+    if (align === 'start') align = 'left';
+    if (align === 'end') align = 'right';
+    const w = Math.round(+cs.fontWeight / 100) * 100;
+    this.zone.run(() => this.fmt.set({
+      family: fam, weight: String(w || 400), size: Math.round(pt * 10) / 10, align,
+      bold: +cs.fontWeight >= 600, italic: cs.fontStyle === 'italic', underline: cs.textDecorationLine.includes('underline'),
+    }));
+  }
+
+  /** keep the text selection while a toolbar <select>/<input> takes focus */
+  saveSel() {
+    const s = document.getSelection();
+    if (s && s.rangeCount && this.selectedTb()) this.savedRange = s.getRangeAt(0).cloneRange();
+  }
+
+  private restoreSel() {
+    const s = document.getSelection();
+    if (this.savedRange && s) { s.removeAllRanges(); s.addRange(this.savedRange); }
+  }
+
+  /** Apply inline styles to the selected text (wrapping it in a span), or to the whole box when nothing is selected. */
+  private applyStyle(props: Record<string, string>) {
+    const tb = this.selectedTb();
+    if (!tb) return;
+    this.restoreSel();
+    const sel = document.getSelection();
+    const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+    const apply = (e: HTMLElement) => Object.entries(props).forEach(([k, v]) => e.style.setProperty(k, v));
+    if (range && !range.collapsed && tb.contains(range.commonAncestorContainer)) {
+      const span = document.createElement('span');
+      span.appendChild(range.extractContents());
+      apply(span);
+      span.querySelectorAll<HTMLElement>('span').forEach(apply); // inner runs carry their own styles
+      range.insertNode(span);
+      sel!.removeAllRanges();
+      const r = document.createRange();
+      r.selectNodeContents(span);
+      sel!.addRange(r);
+      this.savedRange = r.cloneRange();
+    } else {
+      apply(tb);
+      tb.querySelectorAll<HTMLElement>('span').forEach(apply);
+      if ('font-size' in props) {
+        // keep the line pitch proportional to the new size
+        const old = parseFloat(this.fmt().size as string) || parseFloat(props['font-size']);
+        const nw = parseFloat(props['font-size']);
+        const lh = parseFloat(tb.style.lineHeight);
+        if (lh && old) tb.style.lineHeight = `${((lh * nw) / old).toFixed(2)}pt`;
+      }
+    }
+    this.emit();
+    this.readFormat(tb, tb);
+  }
+
+  setFamily(name: string) {
+    const generic = ['Times New Roman', 'Georgia', 'Lora'].includes(name) ? 'serif' : name === 'Courier New' ? 'monospace' : 'sans-serif';
+    this.applyStyle({ 'font-family': `'${name}', ${generic}` });
+  }
+
+  setWeight(w: string) { this.applyStyle({ 'font-weight': w }); }
+
+  setSize(v: string) {
+    const n = Math.min(200, Math.max(3, parseFloat(v)));
+    if (!isNaN(n)) this.applyStyle({ 'font-size': `${n.toFixed(2)}pt` });
+  }
+
+  stepSize(dir: 1 | -1) {
+    const cur = parseFloat(this.fmt().size as string) || 10;
+    this.setSize(String(Math.max(3, cur + dir * (cur < 14 ? 0.5 : 1))));
+  }
+
+  align(a: 'left' | 'center' | 'right' | 'justify') {
+    const tb = this.selectedTb();
+    if (!tb) return;
+    // alignment only has an effect inside a box of fixed width: freeze the current one (drag the right edge to change it)
+    if (!tb.style.width) tb.style.width = `${(tb.getBoundingClientRect().width / this.zoom() * PT_PER_PX).toFixed(2)}pt`;
+    tb.style.textAlign = a;
+    tb.style.setProperty('text-align-last', a === 'justify' ? 'justify' : 'auto');
+    this.emit();
+    this.readFormat(tb, tb);
   }
 }

@@ -250,5 +250,6 @@ a.card:hover, .card.hover:hover { border-color: var(--line-strong); background: 
 .sheet-zoom { width: max-content; margin: 0 auto; }
 .sheet-zoom.editing .pdf-page .tb { cursor: text; border-radius: 2px; }
 .sheet-zoom.editing .pdf-page .tb:hover { outline: 1px dashed rgba(112, 71, 255, 0.55); outline-offset: 1px; }
+.sheet-zoom.editing .pdf-page .tb.sel::after { content: ''; position: absolute; right: -10px; top: 0; bottom: 0; width: 10px; background: #7047ff; opacity: .55; border-radius: 0 3px 3px 0; cursor: ew-resize; }
 .sheet-zoom.editing .pdf-page .tb:focus, .sheet-zoom.editing .pdf-page .tb.sel { outline: 1.5px solid #7047ff; outline-offset: 1px; background: rgba(112, 71, 255, 0.07); }
 .sheet-zoom.editing .pdf-page .tb.sel::before { content: '✥'; position: absolute; left: -15px; top: 0; width: 15px; height: 15px; line-height: 15px; text-align: center; font: 12px/15px sans-serif; color: #fff; background: #7047ff; border-radius: 2px 0 0 2px; cursor: grab; }

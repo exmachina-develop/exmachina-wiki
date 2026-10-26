@@ -92,6 +92,7 @@ const ALLOWED_STYLES = {
     'font-weight': [/^(\d{3}|normal|bold|bolder|lighter)$/],
     'font-style': [/^(normal|italic|oblique)$/],
     'font-kerning': [/^(auto|normal|none)$/],
+    'text-align-last': [/^(auto|left|right|center|justify)$/],
     'text-decoration': [/^(none|underline|line-through)( (none|underline|line-through))?$/],
     'text-transform': [/^(none|uppercase|lowercase|capitalize)$/],
     'white-space': [/^(normal|nowrap|pre|pre-wrap)$/],
