@@ -233,7 +233,7 @@ a.card:hover, .card.hover:hover { border-color: var(--line-strong); background: 
    ============================================================ */
 .pdfpages { display: flex; flex-direction: column; align-items: center; gap: 22px; width: max-content; margin: 0 auto; }
 .pdf-page { position: relative; flex: none; overflow: hidden; background-color: #fff; background-repeat: no-repeat; background-size: 100% 100%; box-shadow: var(--paper-shadow); color: #14141a; }
-.pdf-page .tb { position: absolute; white-space: pre; margin: 0; padding: 0; outline: none; font-family: 'Lexend', sans-serif; font-weight: 300; font-kerning: normal; text-rendering: geometricPrecision; -webkit-font-smoothing: antialiased; }
+.pdf-page .tb { position: absolute; white-space: pre; margin: 0; padding: 0; outline: none; font-family: 'Lexend', sans-serif; font-weight: 300; font-kerning: normal; text-rendering: geometricPrecision; font-variant-ligatures: none; -webkit-font-smoothing: antialiased; }
 .pdf-page .tb span { line-height: 0; }
 .sheet-zoom { width: max-content; margin: 0 auto; }
 .sheet-zoom.editing .pdf-page .tb { cursor: text; border-radius: 2px; }
