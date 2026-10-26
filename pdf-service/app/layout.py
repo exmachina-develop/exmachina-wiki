@@ -17,7 +17,7 @@ from html import escape
 from statistics import mean, median
 
 import fitz  # PyMuPDF
-from PIL import ImageFont
+from PIL import Image, ImageChops, ImageFont
 
 FONT_DIRS = ["/usr/local/share/fonts/wiki", os.path.expanduser("~/fonts")]
 CANDIDATES = {
@@ -303,19 +303,36 @@ def _page_boxes(page: fitz.Page) -> tuple[list[str], list[fitz.Rect]]:
     return boxes, redact
 
 
-def _background(page: fitz.Page, redact: list[fitz.Rect], dpi: int) -> tuple[bytes, str]:
-    """Render the page with its text removed (graphics and images kept)."""
+def _background(page: fitz.Page, redact: list[fitz.Rect], dpi: int) -> tuple[bytes, str, str]:
+    """Render the page with its text removed (graphics and images kept).
+    When the page has a flat background colour, that colour is made transparent so it can be changed in the editor
+    without losing cards, banners and images. Returns (image bytes, kind, page background colour)."""
     if redact:
         for r in redact:
             page.add_redact_annot(r, fill=False)
         page.apply_redactions(images=fitz.PDF_REDACT_IMAGE_NONE, graphics=fitz.PDF_REDACT_LINE_ART_NONE)
     pix = page.get_pixmap(dpi=dpi, alpha=False)
+    im = Image.frombytes("RGB", (pix.width, pix.height), pix.samples)
+    small = im.resize((160, max(1, int(160 * pix.height / pix.width))), Image.NEAREST)
+    colors = small.getcolors(maxcolors=100000) or []
+    total = small.width * small.height
+    if colors:
+        count, key = max(colors)
+        if count / total >= 0.5:
+            diff = ImageChops.difference(im, Image.new("RGB", im.size, key)).convert("L")
+            mask = diff.point(lambda v: 0 if v < 6 else 255)
+            rgba = im.convert("RGBA")
+            rgba.putalpha(mask)
+            import io
+            buf = io.BytesIO()
+            rgba.save(buf, "PNG", optimize=True)
+            return buf.getvalue(), "png", "#{:02x}{:02x}{:02x}".format(*key)
     png = pix.tobytes("png")
     if len(png) > 300_000:
         jpg = pix.tobytes("jpeg", jpg_quality=88)
         if len(jpg) < len(png):
-            return jpg, "jpeg"
-    return png, "png"
+            return jpg, "jpeg", "#ffffff"
+    return png, "png", "#ffffff"
 
 
 def pdf_to_pages(data: bytes, dpi: int = 144) -> dict:
@@ -329,9 +346,12 @@ def pdf_to_pages(data: bytes, dpi: int = 144) -> dict:
         boxes, redact = _page_boxes(page)
         n_chars += sum(len(re.sub(r"<[^>]+>", "", b)) for b in boxes)
         w, h = page.rect.width, page.rect.height
-        img, kind = _background(page, redact, dpi)
+        img, kind, bg = _background(page, redact, dpi)
         uri = f"data:image/{kind};base64,{base64.b64encode(img).decode()}"
-        sections.append(f'<section class="pdf-page" style="width: {w:.2f}pt; height: {h:.2f}pt; background-image: url({uri})">' + "".join(boxes) + "</section>")
+        sections.append(
+            f'<section class="pdf-page" style="width: {w:.2f}pt; height: {h:.2f}pt; background-color: {bg}">'
+            f'<div class="pfg" style="background-image: url({uri})"></div>' + "".join(boxes) + "</section>"
+        )
     w0, h0 = doc[0].rect.width, doc[0].rect.height
     warnings = []
     if n_chars < 20:

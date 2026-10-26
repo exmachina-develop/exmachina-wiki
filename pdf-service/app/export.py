@@ -43,7 +43,10 @@ def html_to_pdf(html: str, title: str, size: str, orientation: str, margin: floa
         @page {{ size: {width_pt}pt {height_pt}pt; margin: 0; }}
         body {{ margin: 0; }}
         .pdfpages {{ display: block; }}
-        .pdf-page {{ position: relative; overflow: hidden; break-after: page; break-inside: avoid; background-repeat: no-repeat; background-size: 100% 100%; background-color: #fff; }}
+        .pdf-page {{ position: relative; overflow: hidden; break-after: page; break-inside: avoid; background-color: #fff; }}
+        .pbg, .pfg {{ position: absolute; left: 0; top: 0; width: 100%; height: 100%; background-repeat: no-repeat; }}
+        .pfg {{ background-size: 100% 100%; }} .pbg {{ background-size: cover; background-position: center; }} .off {{ display: none; }}
+        .shp {{ position: absolute; }} .pimg {{ position: absolute; background-size: 100% 100%; background-repeat: no-repeat; }}
         .pdf-page:last-child {{ break-after: auto; }}
         .tb {{ position: absolute; white-space: pre; margin: 0; padding: 0; font-variant-ligatures: none; font-feature-settings: "liga" 0, "clig" 0; }}
         .tb span {{ line-height: 0; }}
