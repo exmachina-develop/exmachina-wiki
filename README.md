@@ -12,9 +12,10 @@ Wiki interna de documentos: espacios de trabajo, editor de texto enriquecido con
 
 ## Funciones
 
-- **Editor**: títulos, fuente, tamaño (pt), negrita/cursiva/subrayado/tachado, color y resaltado, alineación (izquierda, centro, derecha, justificado), interlineado, listas, citas, código, enlaces, imágenes, **tablas** (filas/columnas, combinar celdas, color de celda, redimensionar) y ajustes de página (A4/Carta, orientación, márgenes). La hoja se muestra en medidas físicas, igual que el PDF exportado.
-- **Importar PDF** → documento editable (estructura, estilos, listas, tablas, imágenes, alineación e interlineado). El PDF original queda guardado en MinIO.
-- **Exportar a PDF** con el formato del editor.
+- **Editor de texto enriquecido**: títulos, fuente, tamaño (pt), negrita/cursiva/subrayado/tachado, color y resaltado, alineación (izquierda, centro, derecha, justificado), interlineado, listas, citas, código, enlaces, imágenes, **tablas** (filas/columnas, combinar celdas, color de celda, redimensionar) y ajustes de página (A4/Carta, orientación, márgenes). La hoja se muestra en medidas físicas, igual que el PDF exportado.
+- **Importar PDF** → documento **por páginas, fiel al original**: cada página conserva su tamaño, fondos, formas, imágenes y gráficos (capa de fondo) y el texto queda como cajas editables en su posición exacta, con la fuente real (Lexend, Unbounded, Urbanist, Times…), tamaño, color, peso, cursiva e interlineado. Las fuentes se recuperan del descriptor de los PDF de Chromium; no se guarda el archivo original. Se puede editar texto, mover/añadir/eliminar cajas y dar formato.
+- **Exportar a PDF**: documentos por páginas salen con el mismo tamaño y número de páginas; los documentos de texto enriquecido usan sus ajustes de página.
+- **Modo claro (por defecto) y oscuro**, con selector en la barra lateral.
 - **Espacios de trabajo** (empresa o privados, con miembros admin/editor/lector), árbol de páginas, historial de versiones con restauración, búsqueda.
 - **Organigrama** de áreas con responsables y personas.
 - **Roles y permisos** configurables (11 permisos), gestión de usuarios.
