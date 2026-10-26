@@ -69,21 +69,36 @@ def _advances(chars: list[dict]) -> list[float]:
     return [(chars[i + 1]["origin"][0] if i + 1 < n else chars[i]["bbox"][2]) - chars[i]["origin"][0] for i in range(n)]
 
 
-def _tracking(chars: list[dict], size: float, fam: str, w: int) -> float:
-    """Constant per-character spacing (pt) that reproduces the original advances with face (fam, w)."""
+def _tracking(chars: list[dict], size: float, fam: str, w: int) -> tuple[float, bool]:
+    """Constant per-character spacing (pt) reproducing the original advances with face (fam, w), and whether the
+    text was set without kerning (strongly letter-spaced runs): returns (tracking_pt, kerning_off)."""
     if fam not in CANDIDATES or _load(fam, w) is None:
-        return 0.0
+        return 0.0, False
     text = "".join(c["c"] for c in chars)
     advs = _advances(chars)
     n = len(chars)
-    res = []
-    for i in range(n):
-        if text[i] == " ":
-            continue
-        pair = text[i : i + 2]
-        adv_em = _len(fam, w, pair) - (_len(fam, w, text[i + 1]) if i + 1 < n else 0.0)
-        res.append(advs[i] - adv_em * size)
-    return max(-0.08 * size, min(0.4 * size, median(res))) if res else 0.0
+
+    def fit(kerned: bool):
+        res = []
+        for i in range(n):
+            if text[i] == " ":
+                continue
+            if kerned:
+                pair = text[i : i + 2]
+                adv_em = _len(fam, w, pair) - (_len(fam, w, text[i + 1]) if i + 1 < n else 0.0)
+            else:
+                adv_em = _len(fam, w, text[i])
+            res.append(advs[i] - adv_em * size)
+        if not res:
+            return 0.0, 0.0
+        ls = median(res)
+        return ls, sum(abs(r - ls) for r in res) / len(res)
+
+    ls_k, err_k = fit(True)
+    ls_n, err_n = fit(False)
+    use_plain = err_n < err_k * 0.8 and abs(ls_n) > 0.04 * size
+    ls = ls_n if use_plain else ls_k
+    return max(-0.08 * size, min(0.5 * size, ls)), use_plain
 
 
 def _font_faces(page: fitz.Page) -> dict[str, tuple[str, int, bool]]:
@@ -109,21 +124,24 @@ def _font_faces(page: fitz.Page) -> dict[str, tuple[str, int, bool]]:
     return out
 
 
-def _font_resources(page: fitz.Page) -> dict[tuple[float, float], str]:
-    """first-character origin -> font resource name (F12 ...), via the nth `Tf` of the content stream."""
+def _font_resources(page: fitz.Page) -> dict[tuple[float, float], tuple[str, bool]]:
+    """glyph origin -> (font resource name, synthetic italic) via the nth `Tf` of the content stream.
+    Synthetic italics show up as a sheared text matrix (`1 0 .25 -1 x y Tm`)."""
     try:
         stream = b"".join(page.parent.xref_stream(x) for x in page.get_contents())
     except Exception:
         return {}
-    tfs = re.findall(rb"/(F\d+) [\d.]+ Tf", stream)
+    runs = re.findall(rb"/(F\d+) [\d.]+ Tf\s+(?:([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) ([-\d.]+) Tm)?", stream)
     trace = [t for t in page.get_texttrace() if t["type"] == 0]
-    if len(tfs) != len(trace):
+    if len(runs) != len(trace):
         return {}
     out = {}
-    for name, t in zip(tfs, trace):
-        if t["chars"]:
-            o = t["chars"][0][2]
-            out[(round(o[0], 1), round(o[1], 1))] = name.decode()
+    for run, t in zip(runs, trace):
+        shear = abs(float(run[3])) if run[3] else 0.0
+        info = (run[0].decode(), shear > 0.1)
+        for ch in t["chars"]:
+            o = ch[2]
+            out[(round(o[0], 1), round(o[1], 1))] = info
     return out
 
 
@@ -132,55 +150,72 @@ def _hexc(c: int) -> str:
 
 
 # ----------------------------------------------------------------------------- page conversion
-def _resolve_faces(page: fitz.Page, d: dict) -> dict[int, tuple[str, int, bool, float]]:
-    """id(span) -> (family, weight, italic, tracking_pt) for every span set in a web font."""
-    res_map = _font_resources(page)
-    faces_by_res = _font_faces(page)
-    faces: dict[int, tuple[str, int, bool, float]] = {}
-    for b in d["blocks"]:
-        if b["type"] != 0:
-            continue
-        for ln in b.get("lines", []):
-            for sp in ln["spans"]:
-                chars = sp.get("chars") or []
-                if not chars:
-                    continue
-                key = (round(chars[0]["origin"][0], 1), round(chars[0]["origin"][1], 1))
-                info = faces_by_res.get(res_map.get(key, ""))
-                if info:
-                    fam, w, it = info
-                    faces[id(sp)] = (fam, w, it, _tracking(chars, sp["size"], fam, w))
-    return faces
+def _key(c: dict) -> tuple[float, float]:
+    return (round(c["origin"][0], 1), round(c["origin"][1], 1))
 
 
-def _runs_for_line(line: dict, faces: dict) -> list[dict]:
-    runs = []
+def _make_run(text: str, sp: dict, origin, color: str, italic: bool) -> dict:
+    low = sp["font"].lower()
+    return {"text": text, "size": sp["size"], "color": color, "italic": italic or "italic" in low,
+            "bold": bool(sp["flags"] & 16) or "bold" in low, "fam": None, "w": 400, "ls": 0.0, "css": None, "plain": False, "origin": origin}
+
+
+def _runs_for_line(line: dict, res_map: dict, faces_by_res: dict) -> list[dict]:
+    """Break a line into runs of one face each. PyMuPDF merges neighbouring web-font runs into one span and adds
+    synthetic spaces between widely tracked glyphs, so runs are rebuilt from the glyphs that really exist in the
+    content stream, grouped by their font object."""
+    runs: list[dict] = []
     for sp in line["spans"]:
         chars = sp.get("chars") or []
-        text = "".join(c["c"] for c in chars)
-        if not text:
+        if not chars:
             continue
         low = sp["font"].lower()
-        r = {"text": text, "size": sp["size"], "color": _hexc(sp["color"]), "italic": bool(sp["flags"] & 2) or "italic" in low,
-             "bold": bool(sp["flags"] & 16) or "bold" in low, "fam": None, "w": 400, "ls": 0.0, "css": None, "origin": sp["origin"]}
+        color = _hexc(sp["color"])
+        italic = bool(sp["flags"] & 2)
+        text = "".join(c["c"] for c in chars)
         if "dejavu" in low:
+            r = _make_run(text, sp, sp["origin"], color, italic)
             r["fam"], r["css"] = "DejaVu Sans", "'DejaVu Sans', sans-serif"
-        elif any(k in low for k in ("times", "serif", "georgia", "garamond")) and "sans" not in low:
+            runs.append(r)
+            continue
+        if any(k in low for k in ("times", "serif", "georgia", "garamond")) and "sans" not in low:
+            r = _make_run(text, sp, sp["origin"], color, italic)
             r["fam"], r["css"] = "Times", "'Times New Roman', serif"
-        elif any(k in low for k in ("courier", "mono")):
+            runs.append(r)
+            continue
+        if any(k in low for k in ("courier", "mono")):
+            r = _make_run(text, sp, sp["origin"], color, italic)
             r["fam"], r["css"] = "Courier", "'Courier New', monospace"
-        elif id(sp) in faces:
-            fam, w, it, ls = faces[id(sp)]
-            r["fam"], r["w"], r["ls"], r["italic"] = fam, w, ls, r["italic"] or it
-            r["css"] = f"'{fam}', sans-serif"
-        runs.append(r)
+            runs.append(r)
+            continue
+        real = [(c, res_map.get(_key(c))) for c in chars] if res_map else []
+        real = [(c, h) for c, h in real if h]
+        if not real:  # could not tie to font objects: neutral run, face inherited from neighbours below
+            runs.append(_make_run(text, sp, sp["origin"], color, italic))
+            continue
+        i = 0
+        while i < len(real):
+            j = i
+            while j + 1 < len(real) and real[j + 1][1] == real[i][1]:
+                j += 1
+            grp = [c for c, _ in real[i : j + 1]]
+            res_name, sheared = real[i][1]
+            r = _make_run("".join(c["c"] for c in grp), sp, grp[0]["origin"], color, italic or sheared)
+            info = faces_by_res.get(res_name)
+            if info:
+                fam, w, it = info
+                ls, plain = _tracking(grp, sp["size"], fam, w)
+                r.update(fam=fam, w=w, ls=ls, plain=plain, css=f"'{fam}', sans-serif")
+                r["italic"] = r["italic"] or it
+            runs.append(r)
+            i = j + 1
     for i, r in enumerate(runs):  # unidentified runs inherit the neighbouring face
         if r["css"] is None:
             src = next((runs[j] for j in (i - 1, i + 1) if 0 <= j < len(runs) and runs[j]["css"] and runs[j]["fam"] not in ("DejaVu Sans", "Times", "Courier")), None)
             if src:
-                r["fam"], r["w"], r["css"], r["ls"] = src["fam"], src["w"], src["css"], src["ls"]
+                r.update(fam=src["fam"], w=src["w"], css=src["css"], ls=src["ls"], plain=src["plain"])
             else:
-                r["fam"], r["w"], r["css"] = "Lexend", 400, "'Lexend', sans-serif"
+                r.update(fam="Lexend", w=400, css="'Lexend', sans-serif")
     return runs
 
 
@@ -196,6 +231,8 @@ def _render_runs(runs: list[dict]) -> str:
             st.append("font-style: italic")
         if abs(r["ls"]) > 0.005:
             st.append(f"letter-spacing: {r['ls']:.2f}pt")
+        if r.get("plain"):
+            st.append("font-kerning: none")
         out.append(f'<span style="{"; ".join(st)}">{escape(r["text"])}</span>')
     return "".join(out)
 
@@ -211,7 +248,8 @@ def _page_boxes(page: fitz.Page) -> tuple[list[str], list[fitz.Rect]]:
     boxes: list[str] = []
     redact: list[fitz.Rect] = []
     d = page.get_text("rawdict")
-    faces = _resolve_faces(page, d)
+    res_map = _font_resources(page)
+    faces_by_res = _font_faces(page)
     for b in d["blocks"]:
         if b["type"] != 0:
             continue
@@ -233,7 +271,7 @@ def _page_boxes(page: fitz.Page) -> tuple[list[str], list[fitz.Rect]]:
                     continue
             groups.append([ln])
         for g in groups:
-            line_runs = [_runs_for_line(ln, faces) for ln in g]
+            line_runs = [_runs_for_line(ln, res_map, faces_by_res) for ln in g]
             if not any(line_runs):
                 continue
             n = len(g)

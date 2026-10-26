@@ -91,6 +91,7 @@ const ALLOWED_STYLES = {
     'letter-spacing': [/^-?\d+(\.\d+)?(px|pt|em)$/],
     'font-weight': [/^(\d{3}|normal|bold|bolder|lighter)$/],
     'font-style': [/^(normal|italic|oblique)$/],
+    'font-kerning': [/^(auto|normal|none)$/],
     'text-decoration': [/^(none|underline|line-through)( (none|underline|line-through))?$/],
     'text-transform': [/^(none|uppercase|lowercase|capitalize)$/],
     'white-space': [/^(normal|nowrap|pre|pre-wrap)$/],
